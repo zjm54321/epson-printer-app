@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "platform": "linux/amd64",
+  "base": {
+    "image": "docker.io/library/ubuntu:24.04",
+    "indexDigest": "sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55",
+    "amd64Digest": "sha256:f610ab94648195aa356059f5b41d6085c9d4d903c072430cdd1af7bdb646106b"
+  },
+  "upstream": [
+    {"name": "cups", "version": "2.4.16", "git": "https://github.com/OpenPrinting/cups.git", "commit": "a08944be4ba6e9861d8ef62494c2e481274b727c"},
+    {"name": "pappl", "version": "1.4.10", "git": "https://github.com/michaelrsweet/pappl.git", "commit": "12699b07bbf8e6cff22f7f5080885f4e8de4382f"},
+    {"name": "libcupsfilters", "version": "2.1.1", "git": "https://github.com/OpenPrinting/libcupsfilters.git", "commit": "c4028517ba4a0d84e649e8e258508c5e90dde36e"},
+    {"name": "libppd", "version": "2.1.1", "git": "https://github.com/OpenPrinting/libppd.git", "commit": "2b37a73c02126d1ba031270322b6c79034cc0d0f"},
+    {"name": "cups-filters", "version": "2.0.1", "git": "https://github.com/OpenPrinting/cups-filters.git", "commit": "5a73330fbd0cde494d984141f9add1565aef8171"},
+    {"name": "pappl-retrofit", "git": "https://github.com/OpenPrinting/pappl-retrofit.git", "commit": "49ad525a3715a57aae24c715ef0767b55ffb1991"},
+    {"name": "foomatic-db", "version": "20240504", "git": "https://github.com/OpenPrinting/foomatic-db.git", "commit": "b1324cde08349583c44a20067a4d877e087d75fe"},
+    {"name": "ghostscript-printer-app", "git": "https://github.com/OpenPrinting/ghostscript-printer-app.git", "commit": "4afd1570bd3e70b30a5730a2748346d89b2c41ad"},
+    {
+      "name": "ghostscript",
+      "version": "10.08.0",
+      "tag": "ghostpdl-10.08.0",
+      "commit": "05631c2cba4e578fdd6bd25cae6f0939436de848",
+      "url": "https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10080/ghostscript-10.08.0.tar.xz",
+      "sha256": "c20492bc8ebb96c87fa2e52a0926e1cda8cde95d66145e018ac713fed5da38cf",
+      "size": 69197208,
+      "drivers": "EPSON,PS,cups",
+      "requiredDevices": ["epson", "epsonc", "lq850", "cups", "ps2write", "pdfwrite"]
+    }
+  ],
+  "ppdGenerator": {"package": "foomatic-db-engine", "version": "4.0.13-6"},
+  "ppds": [
+    {"printer": "printer/Epson-LQ-850", "driver": "lq850", "file": "Epson-LQ-850-lq850.ppd"},
+    {"printer": "printer/Generic-ESC_P_Dot_Matrix_Printer", "driver": "epson", "file": "Generic-ESC_P_Dot_Matrix_Printer-epson.ppd"},
+    {"printer": "printer/Epson-Dot_Matrix", "driver": "epsonc", "file": "Epson-Dot_Matrix-epsonc.ppd"}
+  ]
+}

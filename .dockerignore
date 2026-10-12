@@ -1,0 +1,11 @@
+**
+!Dockerfile
+!.dockerignore
+!sources.lock.json
+!THIRD_PARTY.md
+!scripts/
+!scripts/build-*.sh
+!scripts/entrypoint.sh
+!scripts/verify-image.sh
+!tests/
+!tests/**
