@@ -35,9 +35,14 @@ def package_for(path):
                 packages[(package, version)] = (source, source_version)
                 copyright = Path('/usr/share/doc') / package / 'copyright'
                 if copyright.is_file():
-                    target = root / 'usr/share/doc' / package / 'copyright'
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copyfile(copyright, target)
+                    # Distro doc directories may be symlinks (e.g. libgcc-s1).
+                    # Do not overlay them with real directories during OCI COPY.
+                    for target in (
+                        root / 'usr/share/licenses/epson-printer-app/ubuntu' / package / 'copyright',
+                        manifest.parent / 'licenses/ubuntu' / package / 'copyright',
+                    ):
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copyfile(copyright, target)
                 return
     raise SystemExit('unattributed distro dependency: ' + str(path))
 
