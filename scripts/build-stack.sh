@@ -93,8 +93,11 @@ if [[ -f /stage/pappl-retrofit/usr/share/legacy-printer-app/testpage.pdf ]]; the
 fi
 
 cd /src/ghostscript-printer-app
-make -j"$jobs" SNAP=0 VERSION=10.08.0 LDFLAGS='-L/usr/lib -ljpeg'
-make install SNAP=0 VERSION=10.08.0 PREFIX=/usr prefix=/usr \
+# The app Makefile emits four C integer macros: avoid zero-padded components.
+# This app build version is separate from Ghostscript's reported 10.08.0.
+app_version=10.8.0-1
+make -j"$jobs" SNAP=0 VERSION="$app_version" LDFLAGS='-L/usr/lib -ljpeg'
+make install SNAP=0 VERSION="$app_version" PREFIX=/usr prefix=/usr \
   LDFLAGS='-L/usr/lib -ljpeg' DESTDIR=/stage/ghostscript-printer-app
 install -m 0755 ghostscript-printer-app /runtime/usr/bin/ghostscript-printer-app
 for data in /stage/ghostscript-printer-app/usr/share/ghostscript-printer-app \
