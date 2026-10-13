@@ -87,6 +87,18 @@ printf '%s\n' 'Scenario 3/3: Generic ESC/P profile, PDF/PS/PWG to ephemeral test
 # to the published runtime; the test executes the EXACT supplied image.
 docker build --platform linux/amd64 --target profile-test-tools \
   --output "type=local,dest=$temporary/profile-tools" "$root"
+# Normalize only this fresh export's mount root and two known executables.
+# The private mktemp parent stays 0700; it is not part of the container mount.
+profile_tools="$temporary/profile-tools"
+[[ -d "$profile_tools" && ! -L "$profile_tools" ]]
+for tool in profile-server profile-raster; do
+  [[ -f "$profile_tools/$tool" && ! -L "$profile_tools/$tool" ]]
+done
+stat -c 'Profile export before: %a %u:%g %n' -- \
+  "$profile_tools" "$profile_tools/profile-server" "$profile_tools/profile-raster"
+chmod 0755 -- "$profile_tools" "$profile_tools/profile-server" "$profile_tools/profile-raster"
+stat -c 'Profile export after: %a %u:%g %n' -- \
+  "$profile_tools" "$profile_tools/profile-server" "$profile_tools/profile-raster"
 docker run "${common[@]}" \
   --mount "type=bind,src=$temporary/profile-tools,dst=/profile-tools,readonly" \
   "$image" /tests/check-profile.sh

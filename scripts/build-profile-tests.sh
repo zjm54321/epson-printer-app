@@ -9,3 +9,5 @@ cc -Wall -Wextra -I/src/pappl-retrofit -I/src/pappl-retrofit/pappl-retrofit \
 read -r -a cups_cflags < <(cups-config --cflags)
 cc -Wall -Wextra -Werror "${cups_cflags[@]}" /recipe/tests/profile-raster.c -L/usr/lib -lcups \
   -o /profile-test-tools/profile-raster
+# Test artifacts must not inherit a restrictive compiler/build umask.
+chmod 0755 /profile-test-tools /profile-test-tools/profile-server /profile-test-tools/profile-raster

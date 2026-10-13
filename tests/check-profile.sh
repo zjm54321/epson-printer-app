@@ -3,6 +3,14 @@
 # state live under /tmp; caller supplies --network none and no USB mounts.
 set -eu
 test ! -e /dev/bus/usb
+# Run these checks as the same restricted UID that will execute the tools.
+stat -c 'Profile mounted tools: %a %u:%g %n' -- \
+  /profile-tools /profile-tools/profile-server /profile-tools/profile-raster
+grep ' /profile-tools ' /proc/self/mountinfo
+test -d /profile-tools && test -x /profile-tools
+for tool in /profile-tools/profile-server /profile-tools/profile-raster; do
+  test -f "$tool" && test -r "$tool" && test -x "$tool"
+done
 umask 077
 root=$(mktemp -d /tmp/epson-profile.XXXXXX)
 export PROFILE_TEST_ROOT="$root" TMPDIR="$root"
