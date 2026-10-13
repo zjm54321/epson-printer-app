@@ -6,8 +6,12 @@ chmod 0755 /usr/sbin/policy-rc.d
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends avahi-daemon dbus
 rm /usr/sbin/policy-rc.d
-groupadd --gid 584792 printer
-useradd --uid 584792 --gid 584792 --home-dir /tmp --no-create-home --shell /usr/sbin/nologin printer
+# Avahi checks its compiled-in account's runtime-dir owner before privilege
+# dropping, even with --no-drop-root. Match that account to the runtime UID.
+groupmod --gid 584792 avahi
+usermod --uid 584792 --gid 584792 avahi
+test "$(id -u avahi)" = 584792
+test "$(id -g avahi)" = 584792
 chmod 0755 /usr/local/bin/epson-discovery-entrypoint
 mkdir -p /discovery-source/{manifests,licenses} /usr/share/epson-discovery
 dpkg-query -W -f='${Package}\t${Version}\t${source:Package}\t${source:Version}\n' \
