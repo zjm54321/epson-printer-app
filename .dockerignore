@@ -10,6 +10,8 @@
 !scripts/verify-image.sh
 !tests/
 !tests/**
+!runtime/
+!runtime/**
 !patches/
 !patches/**
 !discovery/

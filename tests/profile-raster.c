@@ -1,0 +1,59 @@
+/* Owned, non-production PWG fixtures and output assertions using real libcups. */
+#include <cups/cups.h>
+#include <cups/pwg.h>
+#include <cups/raster.h>
+#include <assert.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+int main(int argc, char **argv) {
+  assert(argc == 3);
+  if (!strcmp(argv[1], "output")) {
+    FILE *f = fopen(argv[2], "rb");
+    unsigned char data[4096];
+    assert(f);
+    size_t bytes, total = 0;
+    int previous = -1, escp = 0;
+    while ((bytes = fread(data, 1, sizeof(data), f)) > 0) {
+      if (!total) assert(memcmp(data, "%!PS", 4) && memcmp(data, "%PDF", 4));
+      for (size_t i = 0; i < bytes; i++) {
+        if (previous == 27 && (data[i] == '@' || data[i] == '*' || data[i] == '(')) escp = 1;
+        previous = data[i];
+      }
+      total += bytes;
+    }
+    assert(!ferror(f) && total > 4 && escp);
+    fclose(f);
+    printf("PASS real filter ESC/P output: %zu bytes\n", total);
+    return 0;
+  }
+  int black = !strcmp(argv[1], "black");
+  assert(black || !strcmp(argv[1], "gray"));
+  int fd = open(argv[2], O_WRONLY | O_CREAT | O_EXCL, 0600);
+  assert(fd >= 0);
+  cups_raster_t *raster = cupsRasterOpen(fd, CUPS_RASTER_WRITE_PWG);
+  cups_page_header2_t header;
+  pwg_media_t *media = pwgMediaForPWG("na_letter_8.5x11in");
+  assert(raster && media);
+  assert(cupsRasterInitPWGHeader(&header, media, black ? "black_1" : "sgray_8",
+                                 120, 72, "one-sided", "normal"));
+  header.cupsInteger[CUPS_RASTER_PWG_TotalPageCount] = 1;
+  assert(cupsRasterWriteHeader2(raster, &header));
+  unsigned char *row = malloc(header.cupsBytesPerLine);
+  assert(row);
+  for (unsigned y = 0; y < header.cupsHeight; y++) {
+    memset(row, black ? 0 : 255, header.cupsBytesPerLine);
+    // An owned asymmetric stripe and gray ramp, not a blank page.
+    if (y >= 40 && y < 80)
+      for (unsigned x = 8; x < header.cupsBytesPerLine / 2; x++)
+        row[x] = black ? 0xaa : (unsigned char)(x % 192);
+    assert(cupsRasterWritePixels(raster, row, header.cupsBytesPerLine) == header.cupsBytesPerLine);
+  }
+  free(row);
+  cupsRasterClose(raster);
+  close(fd);
+  return 0;
+}

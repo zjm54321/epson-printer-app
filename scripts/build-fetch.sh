@@ -26,6 +26,9 @@ for item in lock['upstream']:
         if git('rev-parse', 'FETCH_HEAD', output=True) != commit:
             raise SystemExit('commit mismatch: ' + name)
         git('checkout', '--detach', 'FETCH_HEAD')
+        # The locked object may be an annotated tag (PAPPL 1.4.10).
+        # Keep the object pin, and separately inventory the peeled commit.
+        resolved_commit = git('rev-parse', 'HEAD', output=True)
         if any(line.startswith('160000 ') for line in git('ls-tree', '-r', 'HEAD', output=True).splitlines()):
             raise SystemExit('unhandled submodule: ' + name)
         # Archive exactly the verified commit, including all upstream licenses.
@@ -39,7 +42,8 @@ for item in lock['upstream']:
         if len(data) != item['size'] or hashlib.sha256(data).hexdigest() != item['sha256']:
             raise SystemExit('archive SHA256/size mismatch: ' + name)
         subprocess.run(['tar', '-xJf', str(archive), '--strip-components=1', '-C', str(destination)], check=True)
-    records.append({**item, 'retainedArchive': archive.name,
+    records.append({**item, **({'resolvedCommit': resolved_commit} if 'git' in item else {}),
+                    'retainedArchive': archive.name,
                     'retainedSHA256': hashlib.sha256(archive.read_bytes()).hexdigest()})
 Path('/corresponding-source/manifests/upstream.json').write_text(json.dumps(records, indent=2) + '\n')
 PY

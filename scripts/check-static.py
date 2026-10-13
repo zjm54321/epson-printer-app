@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Small, dependency-free input checks; no Docker daemon or runtime claims."""
 
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -37,6 +38,24 @@ def check_hashes(value, location="sources.lock.json"):
             check_hashes(item, f"{location}[{index}]")
 
 
+def check_patches(lock):
+    upstream = {item["name"]: item["commit"] for item in lock["upstream"]}
+    supported = {
+        "cups", "pappl", "ghostscript", "libcupsfilters", "libppd",
+        "cups-filters", "pappl-retrofit", "ghostscript-printer-app",
+    }
+    for index, item in enumerate(lock["patches"]):
+        location = f"sources.lock.json.patches[{index}]"
+        component = item.get("component")
+        if component not in supported or component not in upstream:
+            raise ValueError(f"{location}: unsupported source patch component: {component}")
+        if item.get("commit") != upstream[component]:
+            raise ValueError(f"{location}: source patch commit mismatch: {component}")
+        patch = ROOT / item["path"]
+        if hashlib.sha256(patch.read_bytes()).hexdigest() != item["sha256"]:
+            raise ValueError(f"{location}: source patch digest mismatch: {item['path']}")
+
+
 def main():
     missing = [name for name in REQUIRED if not (ROOT / name).is_file()]
     if not list((ROOT / "scripts").glob("build-*")):
@@ -53,6 +72,7 @@ def main():
             raise ValueError(f"{name}: expected a JSON object")
         if name == "sources.lock.json":
             check_hashes(value)
+            check_patches(value)
 
     workflows = sorted((ROOT / ".github/workflows").glob("*.yml"))
     for workflow in workflows:

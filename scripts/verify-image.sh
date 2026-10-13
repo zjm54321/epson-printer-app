@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Exactly three functional scenarios. No external network, USB,
-# host printer paths, credentials, print queues or printer backends are used.
+# Three container scenarios. No external network, USB, host printer paths,
+# credentials or production queues. Profile jobs use a test-only file sink.
 set -euo pipefail
 image=${1:?usage: bash scripts/verify-image.sh IMAGE DISCOVERY_IMAGE}
 discovery=${2:?supply the tested discovery image}
@@ -82,21 +82,12 @@ docker run --rm --network "container:$bus" "${common[@]:3}" \
 docker logs "$avahi"
 docker logs "$bus"
 cleanup_discovery
-printf '%s\n' 'Scenario 3/3: installed PPD + foomatic-rip, owned fixture to temporary file ONLY'
-docker run "${common[@]}" "$image" -ec '
-  test ! -e /dev/bus/usb
-  foomatic-rip --ppd /usr/share/ppd/epson/Epson-LQ-850-lq850.ppd /tests/fixture.ps > /tmp/lq850-output.bin
-  test -s /tmp/lq850-output.bin
-  cat /tmp/lq850-output.bin
-' > "$temporary/lq850-output.bin"
-python3 - "$temporary/lq850-output.bin" <<'PY'
-from pathlib import Path
-import sys
-data = Path(sys.argv[1]).read_bytes()
-if not data or not any(marker in data for marker in (b'\x1b@', b'\x1b*', b'\x1b(')):
-    raise SystemExit('FAIL: installed filter did not produce recognizable ESC/P bytes')
-if data.startswith((b'%!PS', b'%PDF')):
-    raise SystemExit('FAIL: output is an unconverted source document')
-print('PASS scenario 3: temporary output contains ESC/P bytes (' + str(len(data)) + ' bytes)')
-PY
+printf '%s\n' 'Scenario 3/3: Generic ESC/P profile, PDF/PS/PWG to ephemeral test-only file sink'
+# Reuse the build-stage cache to export only test tools. They are never added
+# to the published runtime; the test executes the EXACT supplied image.
+docker build --platform linux/amd64 --target profile-test-tools \
+  --output "type=local,dest=$temporary/profile-tools" "$root"
+docker run "${common[@]}" \
+  --mount "type=bind,src=$temporary/profile-tools,dst=/profile-tools,readonly" \
+  "$image" /tests/check-profile.sh
 printf '%s\n' 'PASS: all 3 offline-container scenarios; NOT hardware or printing acceptance'

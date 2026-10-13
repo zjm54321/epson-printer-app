@@ -6,11 +6,12 @@ test "$(id -g)" = 584792
 test "$(gs --version)" = 10.08.0
 gs -h > /tmp/gs-help.txt
 cat /tmp/gs-help.txt
-for device in epson epsonc lq850 cups ps2write pdfwrite; do
+for device in epson cups ps2write pdfwrite; do
   grep -Eq "(^|[[:space:]])$device([[:space:]]|$)" /tmp/gs-help.txt
 done
 sha256sum -c /usr/share/epson-printer-app/source-libraries.sha256
-for binary in /usr/bin/ghostscript-printer-app /usr/lib/ghostscript-printer-app/backend/usb \
+for binary in /usr/bin/ghostscript-printer-app /usr/libexec/epson-printer-app/queue-check \
+              /usr/lib/ghostscript-printer-app/backend/usb \
               /usr/lib/ghostscript-printer-app/filter/*; do
   printf '\nELF resolution: %s\n' "$binary"
   ldd "$binary" > /tmp/ldd.txt

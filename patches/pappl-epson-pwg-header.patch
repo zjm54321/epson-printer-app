@@ -1,0 +1,33 @@
+--- a/pappl/job-process.c
++++ b/pappl/job-process.c
+@@ -667,7 +667,29 @@
+       break;
+     }
+ 
+-    if (options->header.cupsBitsPerPixel >= 8 && header.cupsBitsPerPixel >= 8)
++    if (!strcmp(printer->driver_name,
++                "generic--esc-p-dot-matrix-printer--epson-recommended-en"))
++    {
++      // This driver streams monochrome raster through PostScript to GS.
++      // The input geometry is independent of the requested output DPI.
++      // Never pair a generated 8-bit header with incoming black_1 pixels.
++      if (!header.HWResolution[0] || !header.HWResolution[1] ||
++          header.cupsNumColors != 1 ||
++          !((header.cupsBitsPerPixel == 1 && header.cupsBitsPerColor == 1 &&
++             header.cupsColorSpace == CUPS_CSPACE_K &&
++             (printer->driver_data.raster_types & PAPPL_RASTER_TYPE_BLACK_1)) ||
++            (header.cupsBitsPerPixel == 8 && header.cupsBitsPerColor == 8 &&
++             header.cupsColorSpace == CUPS_CSPACE_SW &&
++             (printer->driver_data.raster_types & PAPPL_RASTER_TYPE_SGRAY_8))))
++      {
++        papplLogJob(job, PAPPL_LOGLEVEL_ERROR, "Unsupported ESC/P raster header.");
++        papplJobSetReasons(job, PAPPL_JREASON_DOCUMENT_FORMAT_ERROR, PAPPL_JREASON_NONE);
++        job->state = IPP_JSTATE_ABORTED;
++        break;
++      }
++      options->header = header;
++    }
++    else if (options->header.cupsBitsPerPixel >= 8 && header.cupsBitsPerPixel >= 8)
+       options->header = header;		// Use page header from client
+ 
+     if (!(printer->driver_data.rstartpage_cb)(job, options, job->printer->device, page))

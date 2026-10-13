@@ -8,6 +8,40 @@ mkdir -p /runtime/usr/{bin,lib,share} /runtime/usr/lib/ghostscript-printer-app/{
 prepare() {
   if [[ -f autogen.sh ]]; then NOCONFIGURE=1 bash ./autogen.sh; else autoreconf -fi; fi
 }
+apply_patches() {
+  python3 - "$1" <<'PY'
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+import sys
+
+lock = json.loads(Path('/recipe/sources.lock.json').read_text())
+upstream = {item['name']: item['commit'] for item in lock['upstream']}
+supported = {
+    'cups', 'pappl', 'ghostscript', 'libcupsfilters', 'libppd',
+    'cups-filters', 'pappl-retrofit', 'ghostscript-printer-app',
+}
+component = sys.argv[1]
+if component not in supported or component not in upstream:
+    raise SystemExit(f'unsupported source patch component: {component}')
+for item in lock['patches']:
+    target = item.get('component')
+    if target not in supported or target not in upstream:
+        raise SystemExit(f'unsupported source patch component: {target}')
+    if item.get('commit') != upstream[target]:
+        raise SystemExit(f'source patch commit mismatch: {target}')
+    if target != component:
+        continue
+    patch = Path('/recipe') / item['path']
+    if hashlib.sha256(patch.read_bytes()).hexdigest() != item['sha256']:
+        raise SystemExit(f'source patch digest mismatch: {patch}')
+    subprocess.run(
+        ['patch', '--batch', '--fuzz=0', '-p1', '-i', str(patch)],
+        cwd=Path('/src') / component, check=True,
+    )
+PY
+}
 shared_libraries() {
   local stage=$1 file
   while IFS= read -r -d '' file; do
@@ -18,6 +52,7 @@ shared_libraries() {
 autotools_library() {
   local name=$1; shift
   cd "/src/$name"
+  apply_patches "$name"
   prepare
   ./configure --prefix=/usr --libdir=/usr/lib "$@"
   make -j"$jobs"
@@ -29,18 +64,7 @@ autotools_library() {
 
 # CUPS 2 libraries and the USB backend only; never build/install cupsd or network backends.
 cd /src/cups
-python3 - <<'PY'
-import hashlib
-import json
-from pathlib import Path
-import subprocess
-lock = json.loads(Path('/recipe/sources.lock.json').read_text())
-for item in lock['patches']:
-    patch = Path('/recipe') / item['path']
-    if hashlib.sha256(patch.read_bytes()).hexdigest() != item['sha256']:
-        raise SystemExit('source patch digest mismatch')
-    subprocess.run(['patch', '--batch', '--fuzz=0', '-p1', '-i', str(patch)], check=True)
-PY
+apply_patches cups
 [[ -x configure ]] || prepare
 ./configure --prefix=/usr --libdir=/usr/lib --with-tls=gnutls --enable-libusb
 make -j"$jobs" -C cups
@@ -60,6 +84,7 @@ make -j"$jobs" -C tools ipptool
 install -m 0755 tools/ipptool /runtime/usr/bin/ipptool
 
 cd /src/pappl
+apply_patches pappl
 [[ -x configure ]] || prepare
 ./configure --prefix=/usr --libdir=/usr/lib --enable-libjpeg --enable-libpng --enable-libusb --with-dnssd=avahi
 make -j"$jobs"
@@ -69,6 +94,7 @@ shared_libraries /stage/pappl
 ldconfig
 
 cd /src/ghostscript
+apply_patches ghostscript
 ./configure --prefix=/usr --without-x --disable-gtk \
   --with-drivers=EPSON,PS,cups --enable-freetype --without-tesseract
 make -j"$jobs"
@@ -86,6 +112,7 @@ fi
 autotools_library libppd --disable-mutool --disable-pdftocairo --disable-acroread --enable-ppdc-utils
 
 cd /src/cups-filters
+apply_patches cups-filters
 prepare
 ./configure --prefix=/usr --disable-mutool --enable-ppdc-utils
 for filter in foomatic-rip gstoraster pdftops; do
@@ -106,6 +133,7 @@ if [[ -f /stage/pappl-retrofit/usr/share/legacy-printer-app/testpage.pdf ]]; the
 fi
 
 cd /src/ghostscript-printer-app
+apply_patches ghostscript-printer-app
 # The app Makefile emits four C integer macros: avoid zero-padded components.
 # This app build version is separate from Ghostscript's reported 10.08.0.
 app_version=10.8.0-1
@@ -126,3 +154,5 @@ mkdir -p /runtime/usr/libexec/epson-printer-app
 read -r -a cups_cflags < <(cups-config --cflags)
 cc "${cups_cflags[@]}" /recipe/tests/ipp-empty.c -L/usr/lib -lcups \
   -o /runtime/usr/libexec/epson-printer-app/ipp-empty
+cc -Wall -Wextra -Werror "${cups_cflags[@]}" /recipe/runtime/queue-check.c -L/usr/lib -lcups \
+  -o /runtime/usr/libexec/epson-printer-app/queue-check

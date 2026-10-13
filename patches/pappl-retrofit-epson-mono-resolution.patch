@@ -1,0 +1,125 @@
+--- a/pappl-retrofit/pappl-retrofit-private.h
++++ b/pappl-retrofit/pappl-retrofit-private.h
+@@ -95,6 +95,7 @@
+                                         // PPD file to be used by CUPS filters
+   bool       updated;                   // Is the driver data updated for
+                                         // "Installable Options" changes?
++  bool       epson_mono_profile;         // Exact resolved Generic ESC/P driver
+   pr_printer_app_global_data_t *global_data; // Global data
+ } pr_driver_extension_t;
+ 
+--- a/pappl-retrofit/pappl-retrofit.c
++++ b/pappl-retrofit/pappl-retrofit.c
+@@ -1357,6 +1357,9 @@
+     extension->updated              = false;
+     extension->temp_ppd_name        = NULL;
+     extension->global_data          = global_data;
++    extension->epson_mono_profile =
++      !strcmp(ppd_path->driver_name,
++              "generic--esc-p-dot-matrix-printer--epson-recommended-en");
+     driver_data->delete_cb          = _prDriverDelete;
+     driver_data->identify_cb        = global_data->config->identify_cb;
+     driver_data->identify_default   = PAPPL_IDENTIFY_ACTIONS_SOUND;
+@@ -1520,6 +1523,28 @@
+ 
+   // Resolution
+ 
++  if (extension->epson_mono_profile)
++  {
++    // Keep the four hardware pairs intact. PAPPL selects first/middle/last
++    // for draft/normal/high, after honoring explicit printer-resolution.
++    static const int xy[4][2] = {{60, 60}, {120, 72}, {180, 180}, {360, 216}};
++    driver_data->num_resolution = 4;
++    for (i = 0; i < 4; i ++)
++    {
++      driver_data->x_resolution[i] = xy[i][0];
++      driver_data->y_resolution[i] = xy[i][1];
++    }
++    for (i = 0; i < 3; i ++)
++    {
++      res[i][0] = xy[i == 0 ? 0 : i + 1][0];
++      res[i][1] = xy[i == 0 ? 0 : i + 1][1];
++    }
++    if (!update)
++      driver_data->x_default = driver_data->y_default = 180;
++    // The membership check below retains only valid defaults on update.
++  }
++  else
++  {
+   // Apply each preset to the PPD file in turn and find out which resolution
+   // would get used
+ 
+@@ -1746,6 +1771,7 @@
+     driver_data->y_resolution[0] = res[1][1];
+     driver_data->num_resolution = 1;
+   }
++  }
+ 
+   papplLog(system, PAPPL_LOGLEVEL_DEBUG,
+ 	   "Resolutions from presets (missing ones filled with defaults): Draft: %dx%ddpi, Normal: %dx%ddpi, High: %dx%ddpi",
+@@ -2563,6 +2589,8 @@
+ 	if (!strcasecmp(option->keyword, pappl_handled_options[k]))
+ 	  break;
+       if (pappl_handled_options[k] ||
++          (extension->epson_mono_profile &&
++           !strcasecmp(option->keyword, "Resolution")) ||
+ 	  (pc->source_option &&
+ 	   !strcasecmp(option->keyword, pc->source_option)) ||
+ 	  (pc->sides_option &&
+--- a/pappl-retrofit/print-job.c
++++ b/pappl-retrofit/print-job.c
+@@ -839,6 +839,33 @@
+     num_options = cupsAddOption("Collate", choicestr, num_options, &(options));
+   }
+ 
++  // Last writer wins: neither quality/content presets nor stale vendor
++  // settings may override the standard IPP output resolution for this driver.
++  if (extension->epson_mono_profile)
++  {
++    int x = job_options->printer_resolution[0];
++    int y = job_options->printer_resolution[1];
++    if (!((x == 60 && y == 60) || (x == 120 && y == 72) ||
++          (x == 180 && y == 180) || (x == 360 && y == 216)))
++      choicestr = NULL;
++    else
++    {
++      snprintf(buf, sizeof(buf), "%dx%ddpi", x, y);
++      option = ppdFindOption(job_data->ppd, "Resolution");
++      choicestr = option && ppdFindChoice(option, buf) ? buf : NULL;
++    }
++    if (!choicestr)
++    {
++      papplLogJob(job, PAPPL_LOGLEVEL_ERROR,
++                  "Unsupported ESC/P output resolution: %dx%d", x, y);
++      cupsFreeOptions(num_options, options);
++      ippDelete(driver_attrs);
++      free(job_data); // PPD and temporary PPD path belong to the printer.
++      return (NULL);
++    }
++    num_options = cupsAddOption("Resolution", choicestr, num_options, &options);
++  }
++
+   // Reset marked options in the PPD to defaults, to put options we do not
+   // treat here into a defined state
+   ppdMarkDefaults(job_data->ppd);
+@@ -983,6 +1010,11 @@
+ 	      "Printing job in spooling mode");
+ 
+   job_data = _prCreateJobData(job, job_options);
++  if (!job_data)
++  {
++    papplJobDeletePrintOptions(job_options);
++    return (false);
++  }
+   filter_data_ext =
+     (ppd_filter_data_ext_t *)cfFilterDataGetExt(job_data->filter_data,
+ 						PPD_FILTER_DATA_EXT);
+@@ -1778,6 +1810,8 @@
+ 
+   // Load PPD file and determine the PPD options equivalent to the job options
+   job_data = _prCreateJobData(job, options);
++  if (!job_data)
++    return (NULL);
+   papplLogJob(job, PAPPL_LOGLEVEL_DEBUG,
+ 	      "Filtering data to get format %s to send off to the driver or device",
+ 	      job_data->stream_format->dsttype);

@@ -2,9 +2,11 @@
 set -euo pipefail
 mkdir -p /runtime/usr/share/ppd/epson
 python3 - <<'PY'
+import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 
 lock = json.loads(Path('/recipe/sources.lock.json').read_text())
@@ -19,8 +21,27 @@ for ppd in lock['ppds']:
                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             if result.returncode == 0 and result.stdout.startswith(b'*PPD-Adobe:') and b'FoomaticRIPCommandLine' in result.stdout:
                 target = Path('/runtime/usr/share/ppd/epson') / ppd['file']
-                target.write_bytes(result.stdout)
-                records.append({**ppd, 'databaseRoot': database, 'generatorPrinterID': printer})
+                content = result.stdout
+                if ppd['file'] == 'Generic-ESC_P_Dot_Matrix_Printer-epson.ppd':
+                    # Correct only the mono epson device's generated metadata.
+                    for field, original, corrected in ((b'ColorDevice', b'True', b'False'),
+                                                        (b'DefaultColorSpace', b'RGB', b'Gray')):
+                        if len(re.findall(rb'^\*' + field + rb':', content, re.MULTILINE)) != 1:
+                            raise SystemExit('unexpected Generic ESC/P color metadata')
+                        pattern = rb'^(\*' + field + rb':[ \t]+)' + original + rb'([ \t]*\r?)$'
+                        content, count = re.subn(pattern, lambda match: match[1] + corrected + match[2],
+                                                 content, flags=re.MULTILINE)
+                        if count != 1:
+                            raise SystemExit('unexpected Generic ESC/P color metadata')
+                    device = rb'-sDEVICE=epson(?=[%\s\"])'
+                    if not re.search(device, content):
+                        raise SystemExit('Generic ESC/P no longer uses the epson device')
+                    if re.findall(device, content) != re.findall(device, result.stdout):
+                        raise SystemExit('Generic ESC/P command changed')
+                target.write_bytes(content)
+                records.append({**ppd, 'databaseRoot': database, 'generatorPrinterID': printer,
+                                'generatedSHA256': hashlib.sha256(result.stdout).hexdigest(),
+                                'installedSHA256': hashlib.sha256(content).hexdigest()})
                 break
         else:
             continue
