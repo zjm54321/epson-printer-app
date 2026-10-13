@@ -41,12 +41,35 @@ start() {
   /profile-tools/profile-server -o server-port=8000 -o listen-hostname=127.0.0.1 \
     -o log-file=- -o log-level=debug server >> "$root/server.log" 2>&1 &
   server=$!
-  attempt=0
-  until [ -S "$root/ghostscript-printer-app$(id -u).sock" ]; do
+  deadline=$(($(date +%s) + 30))
+  while :; do
     kill -0 "$server"
-    attempt=$((attempt + 1)); test "$attempt" -lt 30
+    code=0
+    "$check" exists "$queue" "$driver" "$device" > "$root/startup-check.log" 2>&1 || code=$?
+    case "$code" in 0|4) break ;; esac
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      cat "$root/startup-check.log"
+      return 1
+    fi
     sleep 1
   done
+}
+stop() {
+  kill "$server"; wait "$server"; server=
+}
+# Protocol checks of live defaults, including immediately after state reload.
+# shellcheck disable=SC2016
+check_defaults() {
+  {
+    printf '%s\n' '{' 'NAME "Retained profile defaults"' 'OPERATION Get-Printer-Attributes' \
+      'GROUP operation-attributes-tag' 'ATTR charset attributes-charset utf-8' \
+      'ATTR language attributes-natural-language en' 'ATTR uri printer-uri $uri' \
+      'ATTR keyword requested-attributes all' 'STATUS successful-ok' \
+      "EXPECT printer-resolution-default OF-TYPE resolution COUNT 1 WITH-VALUE $1" \
+      "EXPECT print-quality-default OF-TYPE enum COUNT 1 WITH-VALUE $2" \
+      'EXPECT !resolution-default' '}'
+  } > "$root/defaults.test"
+  ipptool -T 10 -t "$uri" "$root/defaults.test"
 }
 
 printf '%s\n' 'Profile group 1/3: capabilities, identity, retained defaults, default queue'
@@ -66,8 +89,15 @@ ghostscript-printer-app default -d profile-other
 expect_code 1 "$check" ready "$queue" "$driver" "$device"
 ghostscript-printer-app default -d "$queue"
 ghostscript-printer-app modify -d "$queue" -o printer-resolution-default=120x72dpi -o print-quality-default=high
+check_defaults 120x72dpi 5
 expect_code 1 "$check" ready "$queue" "$driver" "$device"
-kill "$server"; wait "$server"; server=
+stop
+test -s "$STATE_FILE"
+start
+# No modify/default command between restart and these persistence assertions.
+check_defaults 120x72dpi 5
+expect_code 1 "$check" ready "$queue" "$driver" "$device"
+stop
 test -s "$STATE_FILE"
 # Only test-owned, idle state: emulate the old heuristic and obsolete vendor
 # defaults. No production state is opened, copied or migrated by this test.
@@ -78,6 +108,12 @@ start
 ghostscript-printer-app modify -d "$queue" -o printer-resolution-default=180dpi \
   -o print-quality-default=normal -o print-color-mode-default=monochrome
 ghostscript-printer-app default -d "$queue"
+"$check" ready "$queue" "$driver" "$device"
+check_defaults 180dpi 4
+stop
+start
+# Canonical defaults and system-default identity must persist without repair.
+check_defaults 180dpi 4
 "$check" ready "$queue" "$driver" "$device"
 grep -F 'PROFILE CAPS/UPDATE PASS' "$root/server.log"
 
@@ -108,10 +144,14 @@ submit() {
       'ATTR integer job-id $job-id' 'ATTR keyword requested-attributes job-state,job-state-reasons' \
       'STATUS successful-ok' 'EXPECT job-state WITH-VALUE 9 REPEAT-NO-MATCH REPEAT-LIMIT 90' 'DELAY 1' '}'
   } > "$root/job.test"
-  ipptool -T 90 -t -f "$file" "$uri" "$root/job.test"
-  tail -n "+$((lines + 1))" "$root/server.log" > "$root/job.log"
-  grep -F -- '-sDEVICE=epson' "$root/job.log"
-  grep -E -- "-r${xy}([[:space:]\"']|$)" "$root/job.log"
+  if ! ipptool -T 90 -tv -f "$file" "$uri" "$root/job.test" > "$root/ipp-job.log" 2>&1; then
+    cat "$root/ipp-job.log"
+    return 1
+  fi
+  cat "$root/ipp-job.log"
+  tail -n "+$((lines + 1))" "$root/server.log" > "$root/fresh-job.log"
+  awk -v expected_xy="$xy" -v normalized="$root/job.log" -f /tests/check-profile-log.awk \
+    "$root/ipp-job.log" "$root/fresh-job.log"
   /profile-tools/profile-raster output "$root/output.bin"
   cp "$root/output.bin" "$root/outputs/$name.bin"
   if [ "$format" = image/pwg-raster ]; then

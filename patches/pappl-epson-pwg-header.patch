@@ -31,3 +31,19 @@
        options->header = header;		// Use page header from client
  
      if (!(printer->driver_data.rstartpage_cb)(job, options, job->printer->device, page))
+--- a/pappl/system-loadsave.c
++++ b/pappl/system-loadsave.c
+@@ -235,6 +235,13 @@
+ 	  sscanf(value, "%dx%ddpi", &printer->driver_data.x_default, &printer->driver_data.y_default);
+ 	else if (!strcasecmp(line, "sides-default"))
+ 	  printer->driver_data.sides_default = _papplSidesValue(value);
++        else if (!strcmp(line, "resolution-default") &&
++                 !strcmp(printer->driver_name,
++                         "generic--esc-p-dot-matrix-printer--epson-recommended-en"))
++        {
++          // This driver uses standard printer-resolution, not the old PPD vendor option.
++          continue;
++        }
+         else if ((ptr = strstr(line, "-default")) != NULL)
+         {
+           char	defname[128],		// xxx-default name

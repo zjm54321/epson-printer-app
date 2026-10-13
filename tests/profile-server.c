@@ -116,7 +116,8 @@ static bool checked_setup(pappl_system_t *system, const char *driver,
     assert(data->x_default == 120 && data->y_default == 72);
     check_driver(data);
     data->x_default = data->y_default = 180;
-    // Allow the normal post-load status callback to reconcile retained state.
+    // Restore the initial flag after these pre-load update checks. This PPD
+    // has no installable options; persistence is checked by real restarts.
     ((pr_driver_extension_t *)data->extension)->updated = false;
     papplLog(system, PAPPL_LOGLEVEL_INFO, "PROFILE CAPS/UPDATE PASS");
   }
@@ -141,9 +142,13 @@ static int test_app(pr_printer_app_config_t *config, int argc, char **argv) {
 
 int main(int argc, char **argv) {
   struct stat st;
+  static char program_name[] = "ghostscript-printer-app";
   root = getenv("PROFILE_TEST_ROOT");
   if (!root || strncmp(root, "/tmp/", 5) || strstr(root, "..") ||
       lstat(root, &st) || !S_ISDIR(st.st_mode) || st.st_uid != getuid() ||
       !access("/dev/bus/usb", F_OK)) return 1;
+  // PAPPL derives its same-UID socket basename from argv[0], not the config.
+  // Keep the instrumented server on the production CLI/queue-check identity.
+  argv[0] = program_name;
   return upstream_main(argc, argv);
 }
