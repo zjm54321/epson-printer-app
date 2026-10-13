@@ -15,10 +15,10 @@
 +          header.cupsNumColors != 1 ||
 +          !((header.cupsBitsPerPixel == 1 && header.cupsBitsPerColor == 1 &&
 +             header.cupsColorSpace == CUPS_CSPACE_K &&
-+             (printer->driver_data.raster_types & PAPPL_RASTER_TYPE_BLACK_1)) ||
++             (printer->driver_data.raster_types & PAPPL_PWG_RASTER_TYPE_BLACK_1)) ||
 +            (header.cupsBitsPerPixel == 8 && header.cupsBitsPerColor == 8 &&
 +             header.cupsColorSpace == CUPS_CSPACE_SW &&
-+             (printer->driver_data.raster_types & PAPPL_RASTER_TYPE_SGRAY_8))))
++             (printer->driver_data.raster_types & PAPPL_PWG_RASTER_TYPE_SGRAY_8))))
 +      {
 +        papplLogJob(job, PAPPL_LOGLEVEL_ERROR, "Unsupported ESC/P raster header.");
 +        papplJobSetReasons(job, PAPPL_JREASON_DOCUMENT_FORMAT_ERROR, PAPPL_JREASON_NONE);

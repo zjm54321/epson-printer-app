@@ -51,7 +51,7 @@ static bool checked_page(pappl_job_t *job, pappl_pr_options_t *options,
   const char *name = papplJobGetName(job);
   char filename[1024], resolution[64];
   cups_page_header2_t expected;
-  assert(!strcmp(papplJobGetDocumentFormat(job, 1), "image/pwg-raster"));
+  assert(!strcmp(papplJobGetFormat(job), "image/pwg-raster"));
   path(filename, sizeof(filename), !strncmp(name, "black-", 6) ? "black.pwg" : "gray.pwg");
   int fd = open(filename, O_RDONLY);
   assert(fd >= 0);
@@ -90,7 +90,7 @@ static void check_driver(pappl_pr_driver_data_t *data) {
   }
   assert(data->color_supported == PAPPL_COLOR_MODE_MONOCHROME);
   assert(data->color_default == PAPPL_COLOR_MODE_MONOCHROME && data->ppm_color == 0);
-  assert(data->raster_types == (PAPPL_RASTER_TYPE_BLACK_1 | PAPPL_RASTER_TYPE_SGRAY_8));
+  assert(data->raster_types == (PAPPL_PWG_RASTER_TYPE_BLACK_1 | PAPPL_PWG_RASTER_TYPE_SGRAY_8));
   assert(!data->force_raster_type);
   assert(extension->stream_format->rstartpage_cb == prPSRasterStartPage);
   for (int i = 0; i < data->num_vendor; i++)

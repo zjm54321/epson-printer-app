@@ -30,7 +30,7 @@
   "patches": [
     {"path": "patches/cups-usb-bridge-identity.patch", "component": "cups", "commit": "a08944be4ba6e9861d8ef62494c2e481274b727c", "sha256": "098460352af3c3584edf92d34eec345ea70beea53500a16e6723e1a337462695"},
     {"path": "patches/pappl-retrofit-epson-mono-resolution.patch", "component": "pappl-retrofit", "commit": "49ad525a3715a57aae24c715ef0767b55ffb1991", "sha256": "73f0337c52c9cc2837c96814eca2db16c331d56dbe24b315ee326bfa8d1f1340"},
-    {"path": "patches/pappl-epson-pwg-header.patch", "component": "pappl", "commit": "12699b07bbf8e6cff22f7f5080885f4e8de4382f", "sha256": "d1851235b0c17d90e1631f5edf86b85df95ce7f206d897fa70833df17b67a17e"}
+    {"path": "patches/pappl-epson-pwg-header.patch", "component": "pappl", "commit": "12699b07bbf8e6cff22f7f5080885f4e8de4382f", "sha256": "7318d9fe36971dcc94126eb9cfe989de0ded6a64065274ca78d7cd903a8db763"}
   ],
   "discoveryPackages": ["avahi-daemon", "dbus"],
   "ppdGenerator": {"package": "foomatic-db-engine", "version": "4.0.13-6"},
