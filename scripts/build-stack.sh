@@ -149,10 +149,8 @@ for data in /stage/ghostscript-printer-app/usr/share/ghostscript-printer-app \
   fi
 done
 install -D -m 0755 /recipe/scripts/entrypoint.sh /runtime/usr/local/bin/epson-entrypoint
-# This client only issues Get-Printers and checks raw IPP group tags.
+# Read-only production queue identity/readiness client.
 mkdir -p /runtime/usr/libexec/epson-printer-app
 read -r -a cups_cflags < <(cups-config --cflags)
-cc "${cups_cflags[@]}" /recipe/tests/ipp-empty.c -L/usr/lib -lcups \
-  -o /runtime/usr/libexec/epson-printer-app/ipp-empty
 cc -Wall -Wextra -Werror "${cups_cflags[@]}" /recipe/runtime/queue-check.c -L/usr/lib -lcups \
   -o /runtime/usr/libexec/epson-printer-app/queue-check

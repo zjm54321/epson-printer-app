@@ -3,6 +3,8 @@ set -eu
 test "$(id -u)" = 584792
 test "$(id -g)" = 584792
 /usr/local/bin/epson-entrypoint help
+test "$(find /usr/share/ppd/epson -type f -name '*.ppd' | wc -l)" -eq 1
+test -f /usr/share/ppd/epson/Generic-ESC_P_Dot_Matrix_Printer-epson.ppd
 test "$(gs --version)" = 10.08.0
 gs -h > /tmp/gs-help.txt
 cat /tmp/gs-help.txt
@@ -26,4 +28,4 @@ for binary in /usr/bin/ghostscript-printer-app /usr/libexec/epson-printer-app/qu
 done
 test -z "$(find /usr /bin /sbin -xdev -type f -perm /6000 -print)"
 test -z "$(getcap -r / 2>/dev/null)"
-printf '%s\n' 'PASS scenario 1: actual Ghostscript version/devices and ELF/security provenance'
+printf '%s\n' 'PASS build preflight: Ghostscript, catalogue and ELF/security provenance'

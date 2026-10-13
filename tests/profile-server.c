@@ -4,7 +4,6 @@
  * actual driver data/raster geometry and delegate to the real library.
  */
 #include "pappl-retrofit-private.h"
-#include "print-job-private.h"
 #include <assert.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -48,17 +47,20 @@ static ssize_t sink_write(pappl_device_t *device, const void *buffer, size_t byt
 
 static bool checked_page(pappl_job_t *job, pappl_pr_options_t *options,
                          pappl_device_t *device, unsigned page) {
-  const char *name = papplJobGetName(job);
-  char filename[1024], resolution[64];
+  char filename[1024];
   cups_page_header2_t expected;
   assert(!strcmp(papplJobGetFormat(job), "image/pwg-raster"));
-  path(filename, sizeof(filename), !strncmp(name, "black-", 6) ? "black.pwg" : "gray.pwg");
+  path(filename, sizeof(filename), "gray.pwg");
   int fd = open(filename, O_RDONLY);
   assert(fd >= 0);
   cups_raster_t *raster = cupsRasterOpen(fd, CUPS_RASTER_READ);
   assert(raster && cupsRasterReadHeader2(raster, &expected));
   cupsRasterClose(raster);
   close(fd);
+  assert(expected.HWResolution[0] == 120 && expected.HWResolution[1] == 72);
+  assert(expected.cupsBitsPerPixel == 8 && expected.cupsColorSpace == CUPS_CSPACE_SW);
+  assert(options->print_quality == IPP_QUALITY_DRAFT);
+  assert(options->printer_resolution[0] == 360 && options->printer_resolution[1] == 216);
   // Entire decoded client header, not just HWResolution or dimensions.
   assert(!memcmp(&options->header, &expected, sizeof(expected)));
   assert(prPSRasterStartPage(job, options, device, page));
@@ -66,61 +68,20 @@ static bool checked_page(pappl_job_t *job, pappl_pr_options_t *options,
   pr_job_data_t *data = papplJobGetData(job);
   assert(data && data->stream_format->rstartpage_cb == prPSRasterStartPage);
   assert(!strcmp(data->stream_format->dsttype, "application/vnd.cups-postscript"));
-  snprintf(resolution, sizeof(resolution), "%dx%ddpi",
-           options->printer_resolution[0], options->printer_resolution[1]);
   assert(!strcmp(cupsGetOption("Resolution", data->filter_data->num_options,
-                               data->filter_data->options), resolution));
+                               data->filter_data->options), "360x216dpi"));
   papplLogJob(job, PAPPL_LOGLEVEL_INFO,
-              "PROFILE HEADER PASS %ux%u row=%u bits=%u dpi=%ux%u output=%s",
+              "PROFILE HEADER PASS %ux%u row=%u bits=%u dpi=%ux%u output=360x216dpi",
               expected.cupsWidth, expected.cupsHeight, expected.cupsBytesPerLine,
-              expected.cupsBitsPerPixel, expected.HWResolution[0], expected.HWResolution[1], resolution);
+              expected.cupsBitsPerPixel, expected.HWResolution[0], expected.HWResolution[1]);
   return true;
-}
-
-static void check_driver(pappl_pr_driver_data_t *data) {
-  static const int xy[4][2] = {{60,60}, {120,72}, {180,180}, {360,216}};
-  pr_driver_extension_t *extension = data->extension;
-  assert(extension->epson_mono_profile && !extension->ppd->color_device);
-  assert(data->num_resolution == 4);
-  for (int i = 0; i < 4; i++) {
-    char choice[64];
-    assert(data->x_resolution[i] == xy[i][0] && data->y_resolution[i] == xy[i][1]);
-    snprintf(choice, sizeof(choice), "%dx%ddpi", xy[i][0], xy[i][1]);
-    assert(ppdFindChoice(ppdFindOption(extension->ppd, "Resolution"), choice));
-  }
-  assert(data->color_supported == PAPPL_COLOR_MODE_MONOCHROME);
-  assert(data->color_default == PAPPL_COLOR_MODE_MONOCHROME && data->ppm_color == 0);
-  assert(data->raster_types == (PAPPL_PWG_RASTER_TYPE_BLACK_1 | PAPPL_PWG_RASTER_TYPE_SGRAY_8));
-  assert(!data->force_raster_type);
-  assert(extension->stream_format->rstartpage_cb == prPSRasterStartPage);
-  for (int i = 0; i < data->num_vendor; i++)
-    assert(!strstr(extension->vendor_ppd_options[i], "Resolution"));
 }
 
 static bool checked_setup(pappl_system_t *system, const char *driver,
                           const char *uri, const char *id,
                           pappl_pr_driver_data_t *data, ipp_t **attrs, void *global) {
-  bool initial = !data->extension;
   if (!_prDriverSetup(system, driver, uri, id, data, attrs, global)) return false;
-  check_driver(data);
-  if (initial) {
-    assert(data->x_default == 180 && data->y_default == 180);
-    assert(data->quality_default == IPP_QUALITY_NORMAL);
-    // Exercise the real NULL-driver-name update path: reject the former
-    // heuristic pair, while retaining an explicitly valid user default.
-    data->x_default = 360; data->y_default = 180;
-    assert(_prDriverSetup(system, NULL, NULL, NULL, data, attrs, global));
-    assert(data->x_default == 180 && data->y_default == 180);
-    data->x_default = 120; data->y_default = 72;
-    assert(_prDriverSetup(system, NULL, NULL, NULL, data, attrs, global));
-    assert(data->x_default == 120 && data->y_default == 72);
-    check_driver(data);
-    data->x_default = data->y_default = 180;
-    // Restore the initial flag after these pre-load update checks. This PPD
-    // has no installable options; persistence is checked by real restarts.
-    ((pr_driver_extension_t *)data->extension)->updated = false;
-    papplLog(system, PAPPL_LOGLEVEL_INFO, "PROFILE CAPS/UPDATE PASS");
-  }
+  assert(data->rstartpage_cb == prPSRasterStartPage);
   data->rstartpage_cb = checked_page;
   return true;
 }

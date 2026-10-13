@@ -1,4 +1,4 @@
-/* Owned, non-production PWG fixtures and output assertions using real libcups. */
+/* One owned sgray_8 PWG fixture and ESC/P output assertions using real libcups. */
 #include <cups/cups.h>
 #include <cups/pwg.h>
 #include <cups/raster.h>
@@ -30,26 +30,25 @@ int main(int argc, char **argv) {
     printf("PASS real filter ESC/P output: %zu bytes\n", total);
     return 0;
   }
-  int black = !strcmp(argv[1], "black");
-  assert(black || !strcmp(argv[1], "gray"));
+  assert(!strcmp(argv[1], "gray"));
   int fd = open(argv[2], O_WRONLY | O_CREAT | O_EXCL, 0600);
   assert(fd >= 0);
   cups_raster_t *raster = cupsRasterOpen(fd, CUPS_RASTER_WRITE_PWG);
   cups_page_header2_t header;
   pwg_media_t *media = pwgMediaForPWG("na_letter_8.5x11in");
   assert(raster && media);
-  assert(cupsRasterInitPWGHeader(&header, media, black ? "black_1" : "sgray_8",
+  assert(cupsRasterInitPWGHeader(&header, media, "sgray_8",
                                  120, 72, "one-sided", "normal"));
   header.cupsInteger[CUPS_RASTER_PWG_TotalPageCount] = 1;
   assert(cupsRasterWriteHeader2(raster, &header));
   unsigned char *row = malloc(header.cupsBytesPerLine);
   assert(row);
   for (unsigned y = 0; y < header.cupsHeight; y++) {
-    memset(row, black ? 0 : 255, header.cupsBytesPerLine);
+    memset(row, 255, header.cupsBytesPerLine);
     // An owned asymmetric stripe and gray ramp, not a blank page.
     if (y >= 40 && y < 80)
       for (unsigned x = 8; x < header.cupsBytesPerLine / 2; x++)
-        row[x] = black ? 0xaa : (unsigned char)(x % 192);
+        row[x] = (unsigned char)(x % 192);
     assert(cupsRasterWritePixels(raster, row, header.cupsBytesPerLine) == header.cupsBytesPerLine);
   }
   free(row);

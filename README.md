@@ -25,7 +25,7 @@ The runtime image is designed for isolated, least-privilege execution:
 - **Filesystem**: Supports a read-only root filesystem (`readOnlyRootFilesystem: true`), requiring only writable mounts for `/state` and `/tmp`.
 - **Privilege stripping**: All SUID/SGID bits and file capabilities are stripped. The CUPS USB backend is mode `0755`.
 - **Entrypoint**: Defaults to `help` (prints diagnostics) or `inspect` (displays Ghostscript version and installed PPDs) without starting network services. The `server` command must be invoked explicitly.
-- **State isolation**: Restoring historical spool directories may resume queued print jobs; always supply a fresh, empty `/state` volume for inert testing.
+- **State isolation and startup safety**: Production container startup never generates or submits test print jobs. Restoring persistent state may resume existing unfinished print jobs; use a fresh spool volume for inert testing.
 - **Network discovery**: Avahi and D-Bus services are not started automatically; local network mDNS discovery requires separate orchestration.
 
 ## Compatibility and Security Notice
@@ -35,24 +35,27 @@ The runtime image is designed for isolated, least-privilege execution:
 
 ## Artifacts and Traceability
 
-Release builds publish three matching container images to the GitHub Container Registry (GHCR):
+Currently deployed release builds published to the GitHub Container Registry (GHCR):
 - **Runtime**: `ghcr.io/zjm54321/epson-printer-app@sha256:7304292bad8fdf40a69ccecb5c2bda6dd6b9662701041598c21cddb090cfed22`
 - **Discovery**: `ghcr.io/zjm54321/epson-printer-discovery@sha256:6d1567e2f0c2043460f60675efac32df6ff078aa47cc66f1d34b2fcde5efb8d2`
 - **Source companion**: `ghcr.io/zjm54321/epson-printer-app-sources@sha256:b7a286952541b051eebbab614c2d4e2c975fc0fc25cc354eea6a99a38f7b2f7d`
 
-Published from commit `51a77c363910e6478cb82c01fa149a0e0561eb38` via [CI run 38424962173](https://github.com/zjm54321/epson-printer-app/actions/runs/38424962173). Downstream deployments should pin these exact immutable digests.
+Published from commit `51a77c363910e6478cb82c01fa149a0e0561eb38` via [CI run 38424962173](https://github.com/zjm54321/epson-printer-app/actions/runs/38424962173), which validated the historical 32-job test matrix. The ongoing codebase ablation and test streamlining are local changes (-195 net lines) in preparation, and have not yet been published or run in new CI.
 
 The source companion contains corresponding source archives, build recipes, and package manifests. Keep the matching companion available alongside each runtime release to support applicable source-distribution obligations. See [THIRD_PARTY.md](THIRD_PARTY.md) for licenses and pinned source hashes; this packaging is not a legal-compliance certification.
 
 ## Continuous Integration Gates
 
-Build validation is tracked in [GitHub Actions](https://github.com/zjm54321/epson-printer-app/actions/workflows/image.yml). On push to `main` at commit `51a77c3`, CI run 38424962173 passed all gates:
+Build validation is tracked in [GitHub Actions](https://github.com/zjm54321/epson-printer-app/actions/workflows/image.yml). Every pull request and `main` push must pass:
 1. Static analysis (`scripts/check-static.py`).
 2. Exact runtime and discovery image tests (`scripts/verify-image.sh`):
-   - Scenario 1/3: Ghostscript binary, device support, and ELF contract.
-   - Scenario 2/3: D-Bus and Avahi daemon readiness, queue-less isolated server startup.
-   - Scenario 3/3: Generic ESC/P profile verification across 3 offline behavioral groups (32 serialized PS/PDF/PWG fixture jobs testing explicit resolution pairs 60×60, 120×72, 180×180, 360×216, quality mapping and explicit precedence, black_1/sgray_8 rasterization, and restart persistence of defaults with orphan vendor controls stripped, all exiting 0 to ephemeral file sinks without physical output).
+   - Preflight: Ghostscript binary, device support, ELF contract, and private D-Bus/Avahi daemon readiness.
+   - Profile verification: Following the removal of legacy testing helpers (`tests/check-server.sh`, `get-printers.test`, and runtime helper `ipp-empty`), the streamlined profile suite tests exactly 2 offline PrintJobs with 1 controlled test-server restart (no physical hardware connection; outputs route to ephemeral file sinks):
+     * **Case 1**: Fresh test queue and canonical defaults (`normal` / `180x180dpi` plus four capabilities), followed by a controlled test-server restart to verify retained defaults, after which the test script actively submits one PDF fixture job.
+     * **Case 2**: One `sgray_8` PWG raster fixture with `120x72dpi` input rendered to `360x216dpi` explicit output overriding `draft` quality, validating original header geometry, Ghostscript parameters, and zero filter exit status.
 3. Source companion assembly and image publication matching verified build digests.
+
+*Note*: While historical release `51a77c3` passed the earlier 32-case matrix in CI run 38424962173, the streamlined 2-case suite is a new local ablation pending future CI verification.
 
 ## Local Build and Verification
 

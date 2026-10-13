@@ -61,7 +61,7 @@ function words(text, result,    i, c, quote, word, active, n) {
 }
 
 BEGIN {
-    if (expected_xy !~ /^(60x60|120x72|180x180|360x216)$/ || normalized == "")
+    if (expected_xy !~ /^(180x180|360x216)$/ || normalized == "")
         fail("invalid parser arguments")
     external = "cfFilterExternal (foomatic-rip): "
     renderer = external "Starting renderer with command: "

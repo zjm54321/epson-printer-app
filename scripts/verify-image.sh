@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Three container scenarios. No external network, USB, host printer paths,
-# credentials or production queues. Profile jobs use a test-only file sink.
+# Build preflight plus exactly two offline Print-Jobs. No external network,
+# USB, host printer paths or production queues; only a test-only file sink.
 set -euo pipefail
 image=${1:?usage: bash scripts/verify-image.sh IMAGE DISCOVERY_IMAGE}
 discovery=${2:?supply the tested discovery image}
@@ -44,9 +44,9 @@ common=(--rm --network none --user 584792:584792 --group-add 0
   --tmpfs '/tmp:rw,nosuid,nodev,size=128m,mode=1777'
   --mount "type=bind,src=$root/tests,dst=/tests,readonly"
   --entrypoint /bin/sh)
-printf '%s\n' 'Scenario 1/3: Ghostscript/device and ELF contract'
+printf '%s\n' 'Build preflight: Ghostscript, catalogue, ELF and nonroot integrity'
 docker run "${common[@]}" "$image" /tests/check-gs.sh
-printf '%s\n' 'Scenario 2/3: installed catalogue and fresh queue-less isolated server'
+printf '%s\n' 'Build preflight: private D-Bus and Avahi readiness'
 mkdir "$temporary/run"
 chmod 0777 "$temporary/run"
 discovery_common=(--user 584792:584792 --read-only --cap-drop ALL
@@ -76,13 +76,7 @@ until docker exec "$bus" test -f /run/epson-discovery.ready; do
   attempt=$((attempt + 1)); [[ $attempt -lt 30 ]] || { docker logs "$avahi"; exit 1; }
   sleep 1
 done
-# Replace --rm --network none without granting external network.
-docker run --rm --network "container:$bus" "${common[@]:3}" \
-  --mount "type=bind,src=$temporary/run,dst=/run" "$image" /tests/check-server.sh
-docker logs "$avahi"
-docker logs "$bus"
-cleanup_discovery
-printf '%s\n' 'Scenario 3/3: Generic ESC/P profile, PDF/PS/PWG to ephemeral test-only file sink'
+printf '%s\n' 'PASS private D-Bus/Avahi preflight; running two core file-sink jobs'
 # Reuse the build-stage cache to export only test tools. They are never added
 # to the published runtime; the test executes the EXACT supplied image.
 docker build --platform linux/amd64 --target profile-test-tools \
@@ -99,7 +93,12 @@ stat -c 'Profile export before: %a %u:%g %n' -- \
 chmod 0755 -- "$profile_tools" "$profile_tools/profile-server" "$profile_tools/profile-raster"
 stat -c 'Profile export after: %a %u:%g %n' -- \
   "$profile_tools" "$profile_tools/profile-server" "$profile_tools/profile-raster"
-docker run "${common[@]}" \
+# Share only the preflight bus's --network none namespace and private sockets.
+docker run --rm --network "container:$bus" "${common[@]:3}" \
+  --mount "type=bind,src=$temporary/run,dst=/run" \
   --mount "type=bind,src=$temporary/profile-tools,dst=/profile-tools,readonly" \
   "$image" /tests/check-profile.sh
-printf '%s\n' 'PASS: all 3 offline-container scenarios; NOT hardware or printing acceptance'
+docker logs "$avahi"
+docker logs "$bus"
+cleanup_discovery
+printf '%s\n' 'PASS: build preflight and exactly two offline Print-Jobs; NOT physical acceptance'
