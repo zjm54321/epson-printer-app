@@ -30,33 +30,29 @@ The runtime image is designed for isolated, least-privilege execution:
 
 ## Compatibility and Security Notice
 
-- **Hardware compatibility**: The user approved a physical print rendered with the generic `epson` driver at 360×180 dpi. The earlier `lq850` trial produced blurry output. The four new standard resolution choices and client UI options still need release and live-device verification.
+- **Hardware compatibility**: The user approved a physical print rendered with the generic `epson` driver at 360×180 dpi. The earlier `lq850` trial produced blurry output. Physical quality for 360×216 dpi and the other standard resolution choices, as well as client UI options, remain to be verified on physical hardware.
 - **Security posture**: Updating to Ghostscript 10.08.0 provides recent upstream releases, but makes no definitive claim of fixing specific historical CVEs or ensuring vulnerability-free operation. Deployers must pin cryptographic digests and restrict network exposure. The service must never be exposed to the public Internet.
 
 ## Artifacts and Traceability
 
 Release builds publish three matching container images to the GitHub Container Registry (GHCR):
-- **Runtime**: `ghcr.io/zjm54321/epson-printer-app:sha-<commit>`
-- **Discovery**: `ghcr.io/zjm54321/epson-printer-discovery:sha-<commit>`
-- **Source companion**: `ghcr.io/zjm54321/epson-printer-app-sources:sha-<commit>`
+- **Runtime**: `ghcr.io/zjm54321/epson-printer-app@sha256:7304292bad8fdf40a69ccecb5c2bda6dd6b9662701041598c21cddb090cfed22`
+- **Discovery**: `ghcr.io/zjm54321/epson-printer-discovery@sha256:6d1567e2f0c2043460f60675efac32df6ff078aa47cc66f1d34b2fcde5efb8d2`
+- **Source companion**: `ghcr.io/zjm54321/epson-printer-app-sources@sha256:b7a286952541b051eebbab614c2d4e2c975fc0fc25cc354eea6a99a38f7b2f7d`
+
+Published from commit `51a77c363910e6478cb82c01fa149a0e0561eb38` via [CI run 38424962173](https://github.com/zjm54321/epson-printer-app/actions/runs/38424962173). Downstream deployments should pin these exact immutable digests.
 
 The source companion contains corresponding source archives, build recipes, and package manifests. Keep the matching companion available alongside each runtime release to support applicable source-distribution obligations. See [THIRD_PARTY.md](THIRD_PARTY.md) for licenses and pinned source hashes; this packaging is not a legal-compliance certification.
 
-Always reference images by immutable digest (`@sha256:...`) in downstream deployments once published. Digests from prior commit `7c706be` represent the earlier testing milestone; current target configuration builds are pending CI completion.
-
 ## Continuous Integration Gates
 
-Build validation is tracked in [GitHub Actions](https://github.com/zjm54321/epson-printer-app/actions/workflows/image.yml). Every pull request and `main` push must pass:
+Build validation is tracked in [GitHub Actions](https://github.com/zjm54321/epson-printer-app/actions/workflows/image.yml). On push to `main` at commit `51a77c3`, CI run 38424962173 passed all gates:
 1. Static analysis (`scripts/check-static.py`).
 2. Exact runtime and discovery image tests (`scripts/verify-image.sh`):
    - Scenario 1/3: Ghostscript binary, device support, and ELF contract.
    - Scenario 2/3: D-Bus and Avahi daemon readiness, queue-less isolated server startup.
-   - Scenario 3/3: Generic ESC/P profile verification across three behavioral groups using an ephemeral file sink (identity/defaults/default queue, actual PDF/PS filters across four explicit resolution pairs plus quality fallback and conflicts, and real PWG black_1/sgray_8 rasterization across input/output DPI pairs).
-3. Source companion assembly.
-
-These checks represent release requirements for the upcoming build; specific test suite results remain pending until CI completes on `main`.
-
-On pushes to `main`, CI tests the images once, verifies identical image IDs, and publishes the verified artifacts.
+   - Scenario 3/3: Generic ESC/P profile verification across 3 offline behavioral groups (32 serialized PS/PDF/PWG fixture jobs testing explicit resolution pairs 60×60, 120×72, 180×180, 360×216, quality mapping and explicit precedence, black_1/sgray_8 rasterization, and restart persistence of defaults with orphan vendor controls stripped, all exiting 0 to ephemeral file sinks without physical output).
+3. Source companion assembly and image publication matching verified build digests.
 
 ## Local Build and Verification
 
