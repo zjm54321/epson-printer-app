@@ -1,5 +1,29 @@
 # Corresponding sources and runtime boundary
 
+The CUPS source has one locally applied, hash-pinned patch:
+`patches/cups-usb-bridge-identity.patch`. It rejects short/truncated IEEE1284
+responses and uses USB descriptors for URI selection only on VID/PID 1a86:7584;
+valid IEEE1284 metadata and other vendors' URI logic remain. The upstream
+no-reattach quirk is unchanged. Exact patches accompany the upstream archives,
+recipes and corresponding-source artifact. Hardware stability still needs real
+IPP-print validation; the focused source checks do not emulate that hardware.
+
+The separate `discovery` target uses Noble's Avahi/D-Bus packages. Their resolved
+binary/source versions and licenses are retained, and their corresponding Ubuntu
+sources are included in the single companion. Default help is inert; explicit
+`dbus` / `avahi` modes run UID/GID 584792, foreground, without SUID/SGID/capabilities.
+Shared private writable `/run` holds the bus socket and rendered Avahi config.
+The executable `/usr/local/bin/epson-discovery-entrypoint` accepts `dbus` or
+`avahi`. Avahi mode creates `/run/epson-discovery.ready` only after private D-Bus
+GetNameOwner confirms `org.freedesktop.Avahi`; it clears the marker on startup
+and exit, forwarding TERM to its foreground daemon. Queue bootstrap can wait on
+that marker before starting PAPPL; app ENTRYPOINT remains unchanged.
+The image defaults to generic eth0/epson-printer; GitOps can set interfaces/name.
+IPv6, wide-area DNS, reflector and workstation publication are disabled. CI
+case 2 uses a network-none shared namespace, private bus and Avahi on lo, then
+checks the existing fresh no-USB application/zero-queue behavior. This tests
+daemon integration, not actual LAN mDNS reachability or a printer announcement.
+
 This is a native Ubuntu 24.04 **linux/amd64** build of the existing OpenPrinting
 Ghostscript Printer Application, not a replacement print implementation. The
 default entrypoint prints local help only. `server` is explicit. No CUPS scheduler,
@@ -34,13 +58,13 @@ archive is checked against the preverified SHA256 and byte length.
 
 ## Source companion and licenses
 
-Build targets are `runtime` and `sources`. The scratch `sources` image contains:
+Build targets are `runtime`, `discovery` and `sources`. The scratch `sources` image contains:
 
 * the exact upstream archives used, including complete upstream license files;
 * `licenses/upstream/` preserving discovered license/notice paths, and original
   Ubuntu source archives plus Debian/Ubuntu patches and `.dsc` files;
 * this Dockerfile, lock, fixtures and build/test scripts under `build-recipe/`;
-* a patches inventory (currently **no local upstream patches**);
+* the exact locally applied source patch;
 * resolved binary/source package versions, selected PPD generator inputs,
   build-time ELF resolutions, source-library hashes and `SHA256SUMS`.
 

@@ -64,6 +64,9 @@ def copy_library(path):
 
 elf_files = []
 for path in sorted(root.rglob('*')):
+    # PDF payloads are copied as opaque assets, never opened for ELF inspection.
+    if path.suffix.lower() == '.pdf':
+        continue
     if path.is_file() and not path.is_symlink():
         with path.open('rb') as stream:
             if stream.read(4) == b'\x7fELF':

@@ -1,0 +1,17 @@
+[server]
+host-name=@HOST_NAME@
+use-ipv4=yes
+use-ipv6=no
+allow-interfaces=@INTERFACES@
+enable-dbus=yes
+
+[wide-area]
+enable-wide-area=no
+
+[publish]
+publish-workstation=no
+publish-hinfo=no
+publish-domain=no
+
+[reflector]
+enable-reflector=no

@@ -39,8 +39,15 @@ jobs:
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
             -t epson-printer-app:test .
 
-      - name: Test the exact runtime image
-        run: bash scripts/verify-image.sh epson-printer-app:test
+      - name: Build discovery once
+        run: |
+          docker build --platform linux/amd64 --target discovery \
+            --label "org.opencontainers.image.source=$IMAGE_SOURCE" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            -t epson-printer-discovery:test .
+
+      - name: Test the exact runtime and discovery images
+        run: bash scripts/verify-image.sh epson-printer-app:test epson-printer-discovery:test
 
       - name: Build corresponding-source companion
         run: |
@@ -52,7 +59,7 @@ jobs:
       - name: Record built image identities
         run: |
           mkdir -p bundle
-          for image in epson-printer-app:test epson-printer-app-sources:test; do
+          for image in epson-printer-app:test epson-printer-discovery:test epson-printer-app-sources:test; do
             printf '%s %s\n' "$image" "$(docker image inspect --format '{{.Id}}' "$image")"
           done | tee bundle/image-ids.txt
           {
@@ -65,7 +72,7 @@ jobs:
       - name: Save the images without rebuilding
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         run: |
-          docker save epson-printer-app:test epson-printer-app-sources:test | gzip -1 > bundle/images.tar.gz
+          docker save epson-printer-app:test epson-printer-discovery:test epson-printer-app-sources:test | gzip -1 > bundle/images.tar.gz
           (cd bundle && sha256sum images.tar.gz image-ids.txt > SHA256SUMS)
 
       - name: Transfer tested images to the publish job
@@ -105,7 +112,7 @@ jobs:
         run: |
           (cd bundle && sha256sum --check SHA256SUMS)
           docker load --input bundle/images.tar.gz
-          for image in epson-printer-app:test epson-printer-app-sources:test; do
+          for image in epson-printer-app:test epson-printer-discovery:test epson-printer-app-sources:test; do
             printf '%s %s\n' "$image" "$(docker image inspect --format '{{.Id}}' "$image")"
           done > bundle/loaded-image-ids.txt
           diff -u bundle/image-ids.txt bundle/loaded-image-ids.txt
@@ -122,7 +129,7 @@ jobs:
           DOCKER_CONFIG: ${{ runner.temp }}/ghcr-auth
         run: |
           : > bundle/published-images.txt
-          for name in epson-printer-app epson-printer-app-sources; do
+          for name in epson-printer-app epson-printer-discovery epson-printer-app-sources; do
             local_image="$name:test"
             remote_image="ghcr.io/zjm54321/$name:sha-$GITHUB_SHA"
             expected_id="$(docker image inspect --format '{{.Id}}' "$local_image")"

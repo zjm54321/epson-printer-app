@@ -20,10 +20,10 @@ import subprocess
 
 root = Path('/corresponding-source')
 packages = set()
-for name in ('runtime-packages.tsv', 'build-packages.tsv'):
+for name in ('runtime-packages.tsv', 'discovery-packages.tsv', 'build-packages.tsv'):
     for line in (root / 'manifests' / name).read_text().splitlines():
         binary, _, source, version = line.split('\t')
-        if name == 'runtime-packages.tsv' or binary == 'foomatic-db-engine':
+        if name != 'build-packages.tsv' or binary == 'foomatic-db-engine':
             packages.add((source, version))
 # Include the precise Foomatic generator source as well as redistributed packages.
 # Other build-only tools are version-inventoried, not copied into the runtime.
@@ -36,8 +36,7 @@ for source, version in sorted(packages):
                    cwd=directory, check=True)
 shutil.copytree('/recipe', root / 'build-recipe', dirs_exist_ok=True)
 patches = root / 'patches'
-patches.mkdir(exist_ok=True)
-(patches / 'README.txt').write_text('No upstream source patches are applied by this recipe.\n')
+shutil.copytree('/recipe/patches', patches, dirs_exist_ok=True)
 PY
 cd /corresponding-source
 find upstream ubuntu build-recipe licenses patches manifests -type f -print0 \

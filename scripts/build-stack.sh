@@ -29,6 +29,18 @@ autotools_library() {
 
 # CUPS 2 libraries and the USB backend only; never build/install cupsd or network backends.
 cd /src/cups
+python3 - <<'PY'
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+lock = json.loads(Path('/recipe/sources.lock.json').read_text())
+for item in lock['patches']:
+    patch = Path('/recipe') / item['path']
+    if hashlib.sha256(patch.read_bytes()).hexdigest() != item['sha256']:
+        raise SystemExit('source patch digest mismatch')
+    subprocess.run(['patch', '--batch', '--fuzz=0', '-p1', '-i', str(patch)], check=True)
+PY
 [[ -x configure ]] || prepare
 ./configure --prefix=/usr --libdir=/usr/lib --with-tls=gnutls --enable-libusb
 make -j"$jobs" -C cups
@@ -40,6 +52,7 @@ install -m 0755 cups-config /usr/bin/cups-config
 cp -a cups/libcups*.so* /runtime/usr/lib/
 ldconfig
 make -j"$jobs" -C backend usb
+python3 /recipe/tests/check-usb-patch.py /src/cups/backend/usb-libusb.c
 install -m 0755 backend/usb /runtime/usr/lib/ghostscript-printer-app/backend/usb
 install -D -m 0644 backend/org.cups.usb-quirks /runtime/usr/share/cups/usb/org.cups.usb-quirks
 # Read-only IPP inspection tooling, not a scheduler or a backend.

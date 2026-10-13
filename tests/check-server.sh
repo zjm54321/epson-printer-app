@@ -20,4 +20,8 @@ until ipptool -T 2 -tv ipp://127.0.0.1:8000/ipp/system /tests/get-printers.test 
 done
 cat /tmp/ipp.txt
 /usr/libexec/epson-printer-app/ipp-empty
+if grep -Ei 'Unable to .*DNS-SD|DNS-SD.*(failed|error)|Avahi.*(failed|error)|daemon.*NULL' /tmp/server.log; then
+  echo 'FAIL: PAPPL discovery initialization error despite running private Avahi' >&2
+  exit 1
+fi
 printf '%s\n' 'PASS scenario 2: installed catalogue, fresh inert server, zero printer groups'

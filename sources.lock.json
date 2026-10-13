@@ -27,6 +27,8 @@
       "requiredDevices": ["epson", "epsonc", "lq850", "cups", "ps2write", "pdfwrite"]
     }
   ],
+  "patches": [{"path": "patches/cups-usb-bridge-identity.patch", "component": "cups", "commit": "a08944be4ba6e9861d8ef62494c2e481274b727c", "sha256": "098460352af3c3584edf92d34eec345ea70beea53500a16e6723e1a337462695"}],
+  "discoveryPackages": ["avahi-daemon", "dbus"],
   "ppdGenerator": {"package": "foomatic-db-engine", "version": "4.0.13-6"},
   "ppds": [
     {"printer": "printer/Epson-LQ-850", "driver": "lq850", "file": "Epson-LQ-850-lq850.ppd"},

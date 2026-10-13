@@ -9,9 +9,17 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y upgrade \
        > /usr/share/epson-printer-app/base-packages.tsv \
     && rm -rf /var/lib/apt/lists/*
 
+FROM runtime-base AS discovery-build
+COPY scripts/discovery-entrypoint.sh /usr/local/bin/epson-discovery-entrypoint
+COPY discovery/ /etc/epson-discovery/
+COPY scripts/build-discovery.sh /recipe/scripts/build-discovery.sh
+RUN bash /recipe/scripts/build-discovery.sh
+
 FROM runtime-base AS build
 COPY Dockerfile .dockerignore sources.lock.json THIRD_PARTY.md /recipe/
-COPY scripts/build-*.sh scripts/entrypoint.sh scripts/verify-image.sh /recipe/scripts/
+COPY scripts/build-*.sh scripts/entrypoint.sh scripts/discovery-entrypoint.sh scripts/verify-image.sh /recipe/scripts/
+COPY patches/ /recipe/patches/
+COPY discovery/ /recipe/discovery/
 COPY tests/ /recipe/tests/
 RUN bash /recipe/scripts/build-dependencies.sh
 RUN bash /recipe/scripts/build-fetch.sh
@@ -20,6 +28,8 @@ RUN bash /recipe/scripts/build-ppds.sh
 RUN bash /recipe/scripts/build-runtime.sh
 
 FROM build AS source-collection
+COPY --from=discovery-build /discovery-source/manifests/discovery-packages.tsv /corresponding-source/manifests/discovery-packages.tsv
+COPY --from=discovery-build /discovery-source/licenses/ /corresponding-source/licenses/discovery/
 RUN bash /recipe/scripts/build-sources.sh
 
 FROM scratch AS sources
@@ -46,4 +56,10 @@ USER 584792:584792
 WORKDIR /state
 # Deliberately no VOLUME, EXPOSE, healthcheck or automatic server/discovery.
 ENTRYPOINT ["/usr/local/bin/epson-entrypoint"]
+CMD ["help"]
+
+FROM discovery-build AS discovery
+USER 584792:584792
+ENV HOME=/tmp AVAHI_INTERFACES=eth0 AVAHI_HOST_NAME=epson-printer
+ENTRYPOINT ["/usr/local/bin/epson-discovery-entrypoint"]
 CMD ["help"]
