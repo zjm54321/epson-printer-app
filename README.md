@@ -35,12 +35,12 @@ The runtime image is designed for isolated, least-privilege execution:
 
 ## Artifacts and Traceability
 
-Currently deployed release builds published to the GitHub Container Registry (GHCR):
-- **Runtime**: `ghcr.io/zjm54321/epson-printer-app@sha256:7304292bad8fdf40a69ccecb5c2bda6dd6b9662701041598c21cddb090cfed22`
-- **Discovery**: `ghcr.io/zjm54321/epson-printer-discovery@sha256:6d1567e2f0c2043460f60675efac32df6ff078aa47cc66f1d34b2fcde5efb8d2`
-- **Source companion**: `ghcr.io/zjm54321/epson-printer-app-sources@sha256:b7a286952541b051eebbab614c2d4e2c975fc0fc25cc354eea6a99a38f7b2f7d`
+Release builds publish three matching container images to the GitHub Container Registry (GHCR):
+- **Runtime**: `ghcr.io/zjm54321/epson-printer-app@sha256:1d6b04eacbf6d9cf8a940fdfc0f5de05907d2ab24a74a37c7f17db1477754230`
+- **Discovery**: `ghcr.io/zjm54321/epson-printer-discovery@sha256:ba6adad65f1f1576e28d2d0a622f2b85604dc5d032ead93d27c4bf70c2bf3abc`
+- **Source companion**: `ghcr.io/zjm54321/epson-printer-app-sources@sha256:973d7feb14637ee09229db64f241c5bd914437e087391b4f161587d82434c94e`
 
-Published from commit `51a77c363910e6478cb82c01fa149a0e0561eb38` via [CI run 38424962173](https://github.com/zjm54321/epson-printer-app/actions/runs/38424962173), which validated the historical 32-job test matrix. The ongoing codebase ablation and test streamlining are local changes (-195 net lines) in preparation, and have not yet been published or run in new CI.
+Published from commit `dfffa343b79d8066c431759e8af3295b9df04882` via [CI run 38436891490](https://github.com/zjm54321/epson-printer-app/actions/runs/38436891490). Downstream deployments pin these exact immutable digests.
 
 The source companion contains corresponding source archives, build recipes, and package manifests. Keep the matching companion available alongside each runtime release to support applicable source-distribution obligations. See [THIRD_PARTY.md](THIRD_PARTY.md) for licenses and pinned source hashes; this packaging is not a legal-compliance certification.
 
@@ -50,12 +50,10 @@ Build validation is tracked in [GitHub Actions](https://github.com/zjm54321/epso
 1. Static analysis (`scripts/check-static.py`).
 2. Exact runtime and discovery image tests (`scripts/verify-image.sh`):
    - Preflight: Ghostscript binary, device support, ELF contract, and private D-Bus/Avahi daemon readiness.
-   - Profile verification: Following the removal of legacy testing helpers (`tests/check-server.sh`, `get-printers.test`, and runtime helper `ipp-empty`), the streamlined profile suite tests exactly 2 offline PrintJobs with 1 controlled test-server restart (no physical hardware connection; outputs route to ephemeral file sinks):
-     * **Case 1**: Fresh test queue and canonical defaults (`normal` / `180x180dpi` plus four capabilities), followed by a controlled test-server restart to verify retained defaults, after which the test script actively submits one PDF fixture job.
-     * **Case 2**: One `sgray_8` PWG raster fixture with `120x72dpi` input rendered to `360x216dpi` explicit output overriding `draft` quality, validating original header geometry, Ghostscript parameters, and zero filter exit status.
+   - Profile verification: Exactly 2 offline PrintJobs and 1 controlled test-server restart (ephemeral file sinks only; no connection to physical hardware):
+     * **Case 1**: Fresh test queue and canonical defaults (`normal` / `180x180dpi` plus four capabilities), followed by a controlled test-server restart proving retained defaults; test script submits one PDF fixture job rendered to 7,156 ESC/P bytes with filter process exiting zero.
+     * **Case 2**: One `sgray_8` PWG raster fixture with `120x72dpi` input rendered to `360x216dpi` explicit output overriding `draft` quality (44,189 ESC/P bytes), validating original 1020x792 / row 1020 bits 8 header geometry, Ghostscript parameters, and zero filter exit status.
 3. Source companion assembly and image publication matching verified build digests.
-
-*Note*: While historical release `51a77c3` passed the earlier 32-case matrix in CI run 38424962173, the streamlined 2-case suite is a new local ablation pending future CI verification.
 
 ## Local Build and Verification
 
