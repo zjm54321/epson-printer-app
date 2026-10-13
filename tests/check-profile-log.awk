@@ -7,6 +7,24 @@ function fail(reason) {
     exit 1
 }
 
+# Undo one PAPPL 1.4 log.c string-escaping layer, only for quotes/backslashes.
+# Control/octal/unknown escapes are not expected in our commands: fail closed.
+# This is log decoding, not shell unescaping; words() still checks shell syntax.
+function log_command(text,    i, c, decoded) {
+    decoded = ""
+    for (i = 1; i <= length(text); i++) {
+        c = substr(text, i, 1)
+        if (c == "\\") {
+            if (++i > length(text)) fail("truncated renderer log escape")
+            c = substr(text, i, 1)
+            if (c != "\\" && c != "\"" && c != "'")
+                fail("unsupported renderer log escape")
+        }
+        decoded = decoded c
+    }
+    return decoded
+}
+
 # Tokenize, never execute, the single renderer command (including quoted args).
 function words(text, result,    i, c, quote, word, active, n) {
     split("", result)
@@ -82,7 +100,7 @@ FILENAME == ARGV[1] {
 
     if (index(message, renderer) == 1) {
         if (++renderer_count != 1) fail("multiple renderer-start commands")
-        command = substr(message, length(renderer) + 1)
+        command = log_command(substr(message, length(renderer) + 1))
         count = words(command, args)
         # PS/PWG logging quotes the complete command; PDF logging does not.
         if (count == 1) count = words(args[1], args)
