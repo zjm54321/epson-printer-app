@@ -26,16 +26,17 @@
  
      if (!strcmp(printer_name, printer->name))
      {
-@@ -341,6 +351,13 @@
+@@ -341,6 +351,14 @@
  #endif // _WIN32
  
    // Initialize printer structure and attributes...
-+  // Supply only known model identity, never a bridge fallback serial or CMD.
-+  // Keep any genuine device ID and the internal queue name/UUID inputs intact.
-+  if ((!device_id || !*device_id) &&
++  // CMD/CLS come from the observed hardware ID; no guessed serial or speed.
++  // Upgrade only our old short fallback; preserve other IDs and UUID inputs.
++  if ((!device_id || !*device_id ||
++       !strcmp(device_id, "MFG:EPSON;MDL:LQ-1600KIII;")) &&
 +      !strcmp(printer_name, "epson-lq1600kiii-epson") &&
 +      !strcmp(driver_name, "generic--esc-p-dot-matrix-printer--epson-recommended-en"))
-+    device_id = "MFG:EPSON;MDL:LQ-1600KIII;";
++    device_id = "MFG:EPSON;MDL:LQ-1600KIII;CMD:ESCP24K,PRPXL24,BDC;CLS:PRINTER;";
 +
    pthread_rwlock_init(&printer->rwlock, NULL);
  

@@ -32,7 +32,7 @@
     {"path": "patches/pappl-retrofit-epson-mono-resolution.patch", "component": "pappl-retrofit", "commit": "49ad525a3715a57aae24c715ef0767b55ffb1991", "sha256": "029a9ad7dd26e9d4321bd2e04f2c101994cbe5e9d44d15ab32f78b31bc8e2082"},
     {"path": "patches/pappl-epson-pwg-header.patch", "component": "pappl", "commit": "12699b07bbf8e6cff22f7f5080885f4e8de4382f", "sha256": "718609fac6fbff493ed8845fc2de9c53f0cdbcf91a571c942cdc42ba5a933f17"},
     {"path": "patches/pappl-dnssd-name-ipp.patch", "component": "pappl", "commit": "12699b07bbf8e6cff22f7f5080885f4e8de4382f", "sha256": "7a726f8017e9066bcf1a980dfacfda690da435fac9bee40a538eb0780abf9603"},
-    {"path": "patches/pappl-epson-resource-metadata.patch", "component": "pappl", "commit": "12699b07bbf8e6cff22f7f5080885f4e8de4382f", "sha256": "92f9f02c9da5d3adab1990c470ee31d4794cf301c4cc08d061cedaf5c29e4f8f"},
+    {"path": "patches/pappl-epson-resource-metadata.patch", "component": "pappl", "commit": "12699b07bbf8e6cff22f7f5080885f4e8de4382f", "sha256": "5f83751fc1b8941b30ebb996d2e7c3e0531115c3ed7c67da70811073a58a7792"},
     {"path": "patches/pappl-preserve-explicit-hostname.patch", "component": "pappl", "commit": "12699b07bbf8e6cff22f7f5080885f4e8de4382f", "sha256": "824736be0be564e26d8547ac353bb5d8c04dc60ab7e783f90f68ee7ee4a985e0"}
   ],
   "discoveryPackages": ["avahi-daemon", "dbus"],
