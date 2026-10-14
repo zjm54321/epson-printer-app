@@ -18,6 +18,7 @@ int main(int argc, char **argv) {
                                HTTP_ENCRYPTION_IF_REQUESTED, 1, 3000, NULL);
     assert(http && argv[2][0] == '/');
     httpSetTimeout(http, 5.0, NULL, NULL);
+    httpSetField(http, HTTP_FIELD_HOST, "127.0.0.1:8000");
     assert(httpGet(http, argv[2]) == 0);
     http_status_t status;
     do { status = httpUpdate(http); } while (status == HTTP_STATUS_CONTINUE);
