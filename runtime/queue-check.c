@@ -1,4 +1,5 @@
 /* Read-only bootstrap contract: queue-check exists|ready QUEUE DRIVER DEVICE_URI.
+ * ready also accepts a final optional expected DNS-SD display name.
  * 0 = exact match (and ready profile); 4 = exists + explicit IPP not-found only;
  * 1 = every other failure. Same-UID Unix socket only; no fallback or mutation.
  */
@@ -38,6 +39,16 @@ static bool device_uri(const char *s) {
   return true;
 }
 
+static bool dnssd_name(const char *s) {
+  if (!*s || strlen(s) > 63) return false;
+  ipp_t *message = ippNew();
+  ipp_attribute_t *name = ippAddString(message, IPP_TAG_PRINTER, IPP_TAG_NAME,
+                                       "printer-dns-sd-name", NULL, s);
+  bool valid = name && ippValidateAttribute(name);
+  ippDelete(message);
+  return valid;
+}
+
 static const char *no_password(const char *prompt, http_t *http,
                                const char *method, const char *resource, void *data) {
   (void)prompt; (void)http; (void)method; (void)resource; (void)data;
@@ -57,7 +68,8 @@ static bool string_is(ipp_t *response, const char *name, ipp_tag_t tag, const ch
 }
 
 static bool resolutions(ipp_t *response, const char *name, bool defaults) {
-  static const int xy[4][2] = {{60,60}, {120,72}, {180,180}, {360,216}};
+  // Frontend compatibility DPI; the PPD's physical ESC/P pairs are separate.
+  static const int xy[4][2] = {{60,60}, {120,120}, {180,180}, {360,360}};
   int count = defaults ? 1 : 4;
   ipp_attribute_t *a = attribute(response, name, IPP_TAG_RESOLUTION, IPP_TAG_PRINTER, count);
   if (!a) return false;
@@ -120,13 +132,15 @@ int main(int argc, char **argv) {
   int result = 1, printer_id;
   char socket_path[sizeof(((struct sockaddr_un *)0)->sun_path)], resource[256];
   const char *tmp = getenv("TMPDIR");
-  if (argc != 5 || (strcmp(argv[1], "exists") && strcmp(argv[1], "ready"))) {
-    fputs("usage: queue-check exists|ready QUEUE DRIVER DEVICE_URI\n", stderr);
+  if ((argc != 5 && argc != 6) || (strcmp(argv[1], "exists") && strcmp(argv[1], "ready"))) {
+    fputs("usage: queue-check exists QUEUE DRIVER DEVICE_URI\n"
+          "       queue-check ready QUEUE DRIVER DEVICE_URI [DNSSD_NAME]\n", stderr);
     return 1;
   }
   ready = !strcmp(argv[1], "ready");
   if (!identifier(argv[2], 127) || !identifier(argv[3], 255) ||
       !device_uri(argv[4]) ||
+      (argc == 6 && (!ready || !dnssd_name(argv[5]))) ||
       (ready && strcmp(argv[3], profile))) {
     fputs("queue-check: invalid arguments\n", stderr);
     return 1;
@@ -165,6 +179,7 @@ int main(int argc, char **argv) {
       !string_is(response, "smi55357-driver", IPP_TAG_KEYWORD, argv[3]) ||
       !string_is(response, "smi55357-device-uri", IPP_TAG_URI, argv[4])) goto done;
   if (!ready) { result = 0; goto done; }
+  if (argc == 6 && !string_is(response, "printer-dns-sd-name", IPP_TAG_NAME, argv[5])) goto done;
   if (!capabilities(response)) goto done;
   ipp_attribute_t *id = attribute(response, "printer-id", IPP_TAG_INTEGER, IPP_TAG_PRINTER, 1);
   if (!id || (printer_id = ippGetInteger(id, 0)) <= 0) goto done;

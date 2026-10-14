@@ -29,8 +29,9 @@
   ],
   "patches": [
     {"path": "patches/cups-usb-bridge-identity.patch", "component": "cups", "commit": "a08944be4ba6e9861d8ef62494c2e481274b727c", "sha256": "098460352af3c3584edf92d34eec345ea70beea53500a16e6723e1a337462695"},
-    {"path": "patches/pappl-retrofit-epson-mono-resolution.patch", "component": "pappl-retrofit", "commit": "49ad525a3715a57aae24c715ef0767b55ffb1991", "sha256": "73f0337c52c9cc2837c96814eca2db16c331d56dbe24b315ee326bfa8d1f1340"},
-    {"path": "patches/pappl-epson-pwg-header.patch", "component": "pappl", "commit": "12699b07bbf8e6cff22f7f5080885f4e8de4382f", "sha256": "718609fac6fbff493ed8845fc2de9c53f0cdbcf91a571c942cdc42ba5a933f17"}
+    {"path": "patches/pappl-retrofit-epson-mono-resolution.patch", "component": "pappl-retrofit", "commit": "49ad525a3715a57aae24c715ef0767b55ffb1991", "sha256": "029a9ad7dd26e9d4321bd2e04f2c101994cbe5e9d44d15ab32f78b31bc8e2082"},
+    {"path": "patches/pappl-epson-pwg-header.patch", "component": "pappl", "commit": "12699b07bbf8e6cff22f7f5080885f4e8de4382f", "sha256": "718609fac6fbff493ed8845fc2de9c53f0cdbcf91a571c942cdc42ba5a933f17"},
+    {"path": "patches/pappl-dnssd-name-ipp.patch", "component": "pappl", "commit": "12699b07bbf8e6cff22f7f5080885f4e8de4382f", "sha256": "7a726f8017e9066bcf1a980dfacfda690da435fac9bee40a538eb0780abf9603"}
   ],
   "discoveryPackages": ["avahi-daemon", "dbus"],
   "ppdGenerator": {"package": "foomatic-db-engine", "version": "4.0.13-6"},

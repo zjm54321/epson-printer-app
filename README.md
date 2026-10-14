@@ -11,9 +11,10 @@ The container image provides server-side rendering for the Epson LQ-1600KIII (no
 - **Retained PPD**: `Generic-ESC_P_Dot_Matrix_Printer-epson.ppd` (driver `epson`).
 - **Driver slug**: `generic--esc-p-dot-matrix-printer--epson-recommended-en`
 - **Canonical queue**: `epson-lq1600kiii-epson`
+- **Discovery name**: Advertised over DNS-SD/mDNS as `Epson LQ-1600KIII` (persisted via local IPP administration; internal canonical queue name remains unchanged).
 - **Device URI**: `cups:usb://USB2.0-Print/?serial=0.0`
-- **Resolution tiers**: Four standard IPP resolutions: `60x60dpi`, `120x72dpi`, `180x180dpi`, and `360x216dpi`. The four-tier limit is imposed by the underlying PAPPL library, not the IPP protocol. Default resolution is `180x180dpi` (`normal`).
-- **Quality mapping**: `draft` &rarr; `60x60dpi`, `normal` &rarr; `180x180dpi`, `high` &rarr; `360x216dpi`. Explicit IPP resolution attributes take precedence over quality presets. Quality levels control raster rendering resolution, not mechanical bidirectional or unidirectional head passes.
+- **Resolution tiers and client mapping**: Advertises four standard square IPP resolutions (`60x60dpi`, `120x120dpi`, `180x180dpi`, and `360x360dpi`) as a compatibility scheme targeting confirmed square-only capability filtering in Windows IPP components (such as `APMon.dll`). Presentation of all four tiers in native Windows print dialogs remains subject to live verification, and cannot be guaranteed across all Windows print stacks or UI variants. The server-side rendering filter transparently maps these tiers to physical ESC/P dot-matrix output: `60x60` &rarr; `60x60`, `120x120` &rarr; `120x72`, `180x180` &rarr; `180x180`, and `360x360` &rarr; `360x216`. Client logical rendering tiers do not represent physical 360×360 dot-matrix hardware capability. Default resolution is `180x180dpi` (`normal`).
+- **Quality mapping**: `draft` &rarr; `60x60dpi` (GS: `60x60`), `normal` &rarr; `180x180dpi` (GS: `180x180`), `high` &rarr; `360x360dpi` (GS: `360x216`). Explicit resolution attributes take precedence over quality presets. Quality levels control raster rendering resolution, not mechanical bidirectional or unidirectional head passes.
 - **Color mode**: Strictly monochrome (`print-color-mode monochrome`). Erroneous color capabilities and duplicate proprietary resolution controls are removed.
 - **Media and options**: Supported media options, copies, orientation, and scaling are preserved; physical boundaries for all sheet dimensions and continuous stationery remain subject to physical hardware verification.
 - **Hardware bridge**: Pinned for USB2.0-Print USB-to-parallel converters (`1a86:7584`). The stable device URI patch remains necessary because unreliable IEEE-1284 device IDs cause URI drift; the patch uses USB descriptors to construct deterministic device identities. On this specific bridge, `GET_PORT_STATUS` returns `EPIPE` regardless of whether the printer is powered on or off, so port status cannot be used to determine printer power, and absence of `/dev/usb/lp0` does not indicate an offline device.
@@ -25,12 +26,12 @@ The runtime image is designed for isolated, least-privilege execution:
 - **Filesystem**: Supports a read-only root filesystem (`readOnlyRootFilesystem: true`), requiring only writable mounts for `/state` and `/tmp`.
 - **Privilege stripping**: All SUID/SGID bits and file capabilities are stripped. The CUPS USB backend is mode `0755`.
 - **Entrypoint**: Defaults to `help` (prints diagnostics) or `inspect` (displays Ghostscript version and installed PPDs) without starting network services. The `server` command must be invoked explicitly.
-- **State isolation and startup safety**: Production container startup never generates or submits test print jobs. Restoring persistent state may resume existing unfinished print jobs; use a fresh spool volume for inert testing.
+- **State isolation and startup safety**: Production container startup never generates or submits test print jobs. Restoring persistent state only resumes existing unfinished ordinary print jobs (currently 0 pending). Refraining from physical print submissions while the printer is powered off is an operational constraint for the current testing round, not a permanent architectural restriction against spooling ordinary client jobs.
 - **Network discovery**: Avahi and D-Bus services are not started automatically; local network mDNS discovery requires separate orchestration.
 
 ## Compatibility and Security Notice
 
-- **Hardware compatibility**: The user approved a physical print rendered with the generic `epson` driver at 360×180 dpi. The earlier `lq850` trial produced blurry output. Physical quality for 360×216 dpi and the other standard resolution choices, as well as client UI options, remain to be verified on physical hardware.
+- **Hardware compatibility**: The user approved a physical print rendered with the generic `epson` driver at 360×180 dpi. The earlier `lq850` trial produced blurry output. Windows discovery, queue addition, and 2-tier square capability reporting (`60x60`, `180x180`) were previously confirmed with live client evidence; presentation of all four square tiers under the new friendly name, physical print quality for 360×216 dpi, and Android client discovery remain pending live verification.
 - **Security posture**: Updating to Ghostscript 10.08.0 provides recent upstream releases, but makes no definitive claim of fixing specific historical CVEs or ensuring vulnerability-free operation. Deployers must pin cryptographic digests and restrict network exposure. The service must never be exposed to the public Internet.
 
 ## Artifacts and Traceability
@@ -40,7 +41,7 @@ Release builds publish three matching container images to the GitHub Container R
 - **Discovery**: `ghcr.io/zjm54321/epson-printer-discovery@sha256:ba6adad65f1f1576e28d2d0a622f2b85604dc5d032ead93d27c4bf70c2bf3abc`
 - **Source companion**: `ghcr.io/zjm54321/epson-printer-app-sources@sha256:973d7feb14637ee09229db64f241c5bd914437e087391b4f161587d82434c94e`
 
-Published from commit `dfffa343b79d8066c431759e8af3295b9df04882` via [CI run 38436891490](https://github.com/zjm54321/epson-printer-app/actions/runs/38436891490). Downstream deployments pin these exact immutable digests.
+Published from commit `dfffa343b79d8066c431759e8af3295b9df04882` via [CI run 38436891490](https://github.com/zjm54321/epson-printer-app/actions/runs/38436891490). Downstream deployments pin these exact immutable digests for the deployed milestone. The square compatible resolution mapping and friendly discovery name are changes in progress for the upcoming release, not yet built or published.
 
 The source companion contains corresponding source archives, build recipes, and package manifests. Keep the matching companion available alongside each runtime release to support applicable source-distribution obligations. See [THIRD_PARTY.md](THIRD_PARTY.md) for licenses and pinned source hashes; this packaging is not a legal-compliance certification.
 
@@ -51,8 +52,8 @@ Build validation is tracked in [GitHub Actions](https://github.com/zjm54321/epso
 2. Exact runtime and discovery image tests (`scripts/verify-image.sh`):
    - Preflight: Ghostscript binary, device support, ELF contract, and private D-Bus/Avahi daemon readiness.
    - Profile verification: Exactly 2 offline PrintJobs and 1 controlled test-server restart (ephemeral file sinks only; no connection to physical hardware):
-     * **Case 1**: Fresh test queue and canonical defaults (`normal` / `180x180dpi` plus four capabilities), followed by a controlled test-server restart proving retained defaults; test script submits one PDF fixture job rendered to 7,156 ESC/P bytes with filter process exiting zero.
-     * **Case 2**: One `sgray_8` PWG raster fixture with `120x72dpi` input rendered to `360x216dpi` explicit output overriding `draft` quality (44,189 ESC/P bytes), validating original 1020x792 / row 1020 bits 8 header geometry, Ghostscript parameters, and zero filter exit status.
+     * **Case 1**: Fresh test queue setup and friendly discovery name persistence across a controlled test-server restart, after which the test script submits one PDF fixture job at normal 180×180 dpi with filter process exiting zero.
+     * **Case 2**: One `sgray_8` PWG raster fixture with `120x72dpi` input requested at `360x360dpi` (overriding `draft` quality preset) rendered by Ghostscript to `-r360x216` with original geometry and zero filter exit status.
 3. Source companion assembly and image publication matching verified build digests.
 
 ## Local Build and Verification

@@ -1,0 +1,72 @@
+--- a/pappl/mainloop-support.c
++++ b/pappl/mainloop-support.c
+@@ -105,6 +105,9 @@
+         ippAddInteger(request, IPP_TAG_PRINTER, IPP_TAG_INTEGER, "printer-darkness-configured", intvalue);
+     }
+ 
++    if ((value = cupsGetOption("printer-dns-sd-name", num_options, options)) != NULL)
++      ippAddString(request, IPP_TAG_PRINTER, IPP_TAG_NAME, "printer-dns-sd-name", NULL, value);
++
+     if ((value = cupsGetOption("printer-geo-location", num_options, options)) != NULL)
+       ippAddString(request, IPP_TAG_PRINTER, IPP_TAG_URI, "printer-geo-location", NULL, value);
+ 
+--- a/pappl/printer-driver.c
++++ b/pappl/printer-driver.c
+@@ -439,6 +439,7 @@
+     "print-content-optimize-default",
+     "print-quality-default",
+     "printer-contact-col",
++    "printer-dns-sd-name",
+     "printer-geo-location",
+     "printer-location",
+     "printer-organization",
+--- a/pappl/printer-ipp.c
++++ b/pappl/printer-ipp.c
+@@ -946,6 +946,7 @@
+   pappl_contact_t	contact;	// printer-contact value
+   bool			do_contact = false;
+ 					// Update contact?
++  const char            *dns_sd_name = NULL; // printer-dns-sd-name value
+   const char		*geo_location = NULL,
+ 					// printer-geo-location value
+ 			*location = NULL,
+@@ -976,6 +977,7 @@
+     { "print-speed-default",		IPP_TAG_INTEGER,	1 },
+     { "printer-contact-col",		IPP_TAG_BEGIN_COLLECTION, 1 },
+     { "printer-darkness-configured",	IPP_TAG_INTEGER,	1 },
++    { "printer-dns-sd-name",             IPP_TAG_NAME,           1 },
+     { "printer-geo-location",		IPP_TAG_URI,		1 },
+     { "printer-location",		IPP_TAG_TEXT,		1 },
+     { "printer-organization",		IPP_TAG_TEXT,		1 },
+@@ -1178,6 +1180,21 @@
+       driver_data.darkness_configured = ippGetInteger(rattr, 0);
+       do_defaults = true;
+     }
++    else if (!strcmp(name, "printer-dns-sd-name"))
++    {
++      const char *candidate;
++
++      // A DNS-SD instance label is at most 63 UTF-8 octets. Validate the
++      // IPP name as well, rejecting controls, malformed UTF-8 and ambiguity.
++      if (dns_sd_name || value_tag != IPP_TAG_NAME || count != 1 ||
++          (candidate = ippGetString(rattr, 0, NULL)) == NULL ||
++          !*candidate || strlen(candidate) > 63 || !ippValidateAttribute(rattr))
++      {
++        papplClientRespondIPPUnsupported(client, rattr);
++        continue;
++      }
++      dns_sd_name = candidate;
++    }
+     else if (!strcmp(name, "printer-geo-location"))
+     {
+       float geo_lat, geo_lon;		// Latitude and longitude
+@@ -1277,6 +1294,9 @@
+ 
+   if (do_contact)
+     papplPrinterSetContact(printer, &contact);
++
++  if (dns_sd_name)
++    papplPrinterSetDNSSDName(printer, dns_sd_name);
+ 
+   if (geo_location)
+     papplPrinterSetGeoLocation(printer, geo_location);

@@ -28,6 +28,7 @@ cleanup() {
 trap cleanup EXIT
 driver=generic--esc-p-dot-matrix-printer--epson-recommended-en
 queue=epson-lq1600kiii-epson
+dnssd_name='Epson LQ-1600KIII'
 device=offline:profile-test
 check=/usr/libexec/epson-printer-app/queue-check
 uri="ipp://127.0.0.1:8000/ipp/print/$queue"
@@ -97,19 +98,21 @@ printf '%s\n' 'Core test 1/2: fresh canonical queue, persistent defaults, one no
 start
 ghostscript-printer-app add -d "$queue" -m "$driver" -v "$device"
 ghostscript-printer-app default -d "$queue"
-# Includes all four standard/PWG resolutions, mono, normal/180x180 defaults,
+# Keep quotes inside -o for PAPPL's cupsParseOptions, not only for the shell.
+ghostscript-printer-app modify -d "$queue" -o "printer-dns-sd-name=\"$dnssd_name\""
+# Includes four square standard/PWG compatibility resolutions, mono, normal/180 defaults,
 # absence of vendor Resolution, and the matching system-default printer ID.
-"$check" ready "$queue" "$driver" "$device"
+"$check" ready "$queue" "$driver" "$device" "$dnssd_name"
 stop
 test -s "$STATE_FILE"
 start
 # One controlled reload, with no default repair before querying/printing.
-"$check" ready "$queue" "$driver" "$device"
+"$check" ready "$queue" "$driver" "$device" "$dnssd_name"
 gs -q -dBATCH -dNOPAUSE -sDEVICE=pdfwrite -sOutputFile="$root/fixture.pdf" /tests/fixture.ps
 submit pdf-normal application/pdf "$root/fixture.pdf" 180x180 none none
 
-printf '%s\n' 'Core test 2/2: sgray_8 PWG 120x72 input, explicit 360x216 output overrides draft'
+printf '%s\n' 'Core test 2/2: sgray_8 PWG 120x72 input, logical 360dpi overrides draft; physical ESC/P 360x216'
 /profile-tools/profile-raster gray "$root/gray.pwg"
-submit gray-explicit image/pwg-raster "$root/gray.pwg" 360x216 360x216 3
-"$check" ready "$queue" "$driver" "$device"
+submit gray-explicit image/pwg-raster "$root/gray.pwg" 360x216 360 3
+"$check" ready "$queue" "$driver" "$device" "$dnssd_name"
 printf '%s\n' 'PASS exactly two offline Print-Jobs; temporary file output, NOT physical acceptance'

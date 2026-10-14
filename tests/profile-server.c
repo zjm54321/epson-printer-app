@@ -60,7 +60,7 @@ static bool checked_page(pappl_job_t *job, pappl_pr_options_t *options,
   assert(expected.HWResolution[0] == 120 && expected.HWResolution[1] == 72);
   assert(expected.cupsBitsPerPixel == 8 && expected.cupsColorSpace == CUPS_CSPACE_SW);
   assert(options->print_quality == IPP_QUALITY_DRAFT);
-  assert(options->printer_resolution[0] == 360 && options->printer_resolution[1] == 216);
+  assert(options->printer_resolution[0] == 360 && options->printer_resolution[1] == 360);
   // Entire decoded client header, not just HWResolution or dimensions.
   assert(!memcmp(&options->header, &expected, sizeof(expected)));
   assert(prPSRasterStartPage(job, options, device, page));
@@ -71,7 +71,7 @@ static bool checked_page(pappl_job_t *job, pappl_pr_options_t *options,
   assert(!strcmp(cupsGetOption("Resolution", data->filter_data->num_options,
                                data->filter_data->options), "360x216dpi"));
   papplLogJob(job, PAPPL_LOGLEVEL_INFO,
-              "PROFILE HEADER PASS %ux%u row=%u bits=%u dpi=%ux%u output=360x216dpi",
+              "PROFILE HEADER PASS %ux%u row=%u bits=%u dpi=%ux%u logical=360x360dpi output=360x216dpi",
               expected.cupsWidth, expected.cupsHeight, expected.cupsBytesPerLine,
               expected.cupsBitsPerPixel, expected.HWResolution[0], expected.HWResolution[1]);
   return true;

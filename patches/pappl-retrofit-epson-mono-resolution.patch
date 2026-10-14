@@ -20,15 +20,17 @@
      driver_data->delete_cb          = _prDriverDelete;
      driver_data->identify_cb        = global_data->config->identify_cb;
      driver_data->identify_default   = PAPPL_IDENTIFY_ACTIONS_SOUND;
-@@ -1520,6 +1523,28 @@
+@@ -1520,6 +1523,30 @@
  
    // Resolution
  
 +  if (extension->epson_mono_profile)
 +  {
-+    // Keep the four hardware pairs intact. PAPPL selects first/middle/last
-+    // for draft/normal/high, after honoring explicit printer-resolution.
-+    static const int xy[4][2] = {{60, 60}, {120, 72}, {180, 180}, {360, 216}};
++    // Square compatibility resolutions for IPP/PWG clients, not physical
++    // ESC/P device DPI. _prCreateJobData maps these to the PPD choices.
++    // PAPPL selects first/middle/last for draft/normal/high after honoring
++    // explicit printer-resolution; the incoming raster header stays intact.
++    static const int xy[4][2] = {{60, 60}, {120, 120}, {180, 180}, {360, 360}};
 +    driver_data->num_resolution = 4;
 +    for (i = 0; i < 4; i ++)
 +    {
@@ -49,7 +51,7 @@
    // Apply each preset to the PPD file in turn and find out which resolution
    // would get used
  
-@@ -1746,6 +1771,7 @@
+@@ -1746,6 +1773,7 @@
      driver_data->y_resolution[0] = res[1][1];
      driver_data->num_resolution = 1;
    }
@@ -57,7 +59,7 @@
  
    papplLog(system, PAPPL_LOGLEVEL_DEBUG,
  	   "Resolutions from presets (missing ones filled with defaults): Draft: %dx%ddpi, Normal: %dx%ddpi, High: %dx%ddpi",
-@@ -2563,6 +2589,8 @@
+@@ -2563,6 +2591,8 @@
  	if (!strcasecmp(option->keyword, pappl_handled_options[k]))
  	  break;
        if (pappl_handled_options[k] ||
@@ -68,7 +70,7 @@
  	  (pc->sides_option &&
 --- a/pappl-retrofit/print-job.c
 +++ b/pappl-retrofit/print-job.c
-@@ -839,6 +839,33 @@
+@@ -839,6 +839,40 @@
      num_options = cupsAddOption("Collate", choicestr, num_options, &(options));
    }
  
@@ -78,31 +80,38 @@
 +  {
 +    int x = job_options->printer_resolution[0];
 +    int y = job_options->printer_resolution[1];
-+    if (!((x == 60 && y == 60) || (x == 120 && y == 72) ||
-+          (x == 180 && y == 180) || (x == 360 && y == 216)))
-+      choicestr = NULL;
-+    else
++    // Only the PPD output option changes: job options and raster geometry
++    // retain the client's logical resolution and validated input header.
++    choicestr = NULL;
++    if (x == y)
 +    {
-+      snprintf(buf, sizeof(buf), "%dx%ddpi", x, y);
-+      option = ppdFindOption(job_data->ppd, "Resolution");
-+      choicestr = option && ppdFindChoice(option, buf) ? buf : NULL;
++      switch (x)
++      {
++        case 60:  choicestr = "60x60dpi";   break;
++        case 120: choicestr = "120x72dpi";  break;
++        case 180: choicestr = "180x180dpi"; break;
++        case 360: choicestr = "360x216dpi"; break;
++      }
 +    }
-+    if (!choicestr)
++    option = ppdFindOption(job_data->ppd, "Resolution");
++    if (!choicestr || !option || !ppdFindChoice(option, choicestr))
 +    {
 +      papplLogJob(job, PAPPL_LOGLEVEL_ERROR,
-+                  "Unsupported ESC/P output resolution: %dx%d", x, y);
++                  "Unsupported ESC/P logical resolution: %dx%d", x, y);
 +      cupsFreeOptions(num_options, options);
 +      ippDelete(driver_attrs);
 +      free(job_data); // PPD and temporary PPD path belong to the printer.
 +      return (NULL);
 +    }
++    papplLogJob(job, PAPPL_LOGLEVEL_DEBUG,
++                "ESC/P resolution: logical %dx%ddpi -> device %s", x, y, choicestr);
 +    num_options = cupsAddOption("Resolution", choicestr, num_options, &options);
 +  }
 +
    // Reset marked options in the PPD to defaults, to put options we do not
    // treat here into a defined state
    ppdMarkDefaults(job_data->ppd);
-@@ -983,6 +1010,11 @@
+@@ -983,6 +1017,11 @@
  	      "Printing job in spooling mode");
  
    job_data = _prCreateJobData(job, job_options);
@@ -114,7 +123,7 @@
    filter_data_ext =
      (ppd_filter_data_ext_t *)cfFilterDataGetExt(job_data->filter_data,
  						PPD_FILTER_DATA_EXT);
-@@ -1778,6 +1810,8 @@
+@@ -1778,6 +1817,8 @@
  
    // Load PPD file and determine the PPD options equivalent to the job options
    job_data = _prCreateJobData(job, options);
