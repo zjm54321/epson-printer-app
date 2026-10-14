@@ -77,16 +77,16 @@
 -    ippAddInteger(attrs, IPP_TAG_PRINTER, IPP_TAG_INTEGER, "pages-per-minute", data->ppm);
 -  else
 -    ippAddInteger(attrs, IPP_TAG_PRINTER, IPP_TAG_INTEGER, "pages-per-minute", 1);
-+  // Internal ppm stays positive for driver validation; physical speed for
-+  // this printer is unmeasured, so do not advertise the generic 1 ppm guess.
-+  if (strcmp(printer->name, "epson-lq1600kiii-epson") ||
-+      strcmp(printer->driver_name, "generic--esc-p-dot-matrix-printer--epson-recommended-en"))
-+  {
-+    if (data->ppm > 0)
-+      ippAddInteger(attrs, IPP_TAG_PRINTER, IPP_TAG_INTEGER, "pages-per-minute", data->ppm);
-+    else
-+      ippAddInteger(attrs, IPP_TAG_PRINTER, IPP_TAG_INTEGER, "pages-per-minute", 1);
-+  }
++  // Nominal high-speed Latin text estimate from user-provided 300 cps at 10 cpi:
++  // A4 reference 75 characters/line * 60 lines: 300 * 60 / 4500 = 4 ppm.
++  // Not measured 180 dpi raster throughput or an externally verified specification.
++  if (!strcmp(printer->name, "epson-lq1600kiii-epson") &&
++      !strcmp(printer->driver_name, "generic--esc-p-dot-matrix-printer--epson-recommended-en"))
++    ippAddInteger(attrs, IPP_TAG_PRINTER, IPP_TAG_INTEGER, "pages-per-minute", 4);
++  else if (data->ppm > 0)
++    ippAddInteger(attrs, IPP_TAG_PRINTER, IPP_TAG_INTEGER, "pages-per-minute", data->ppm);
++  else
++    ippAddInteger(attrs, IPP_TAG_PRINTER, IPP_TAG_INTEGER, "pages-per-minute", 1);
  
  
    // pages-per-minute-color

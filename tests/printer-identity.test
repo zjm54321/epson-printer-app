@@ -17,7 +17,7 @@
   EXPECT printer-make-and-model OF-TYPE text COUNT 1 WITH-VALUE "Epson LQ-1600KIII"
   # CMD/CLS are hardware-reported identity, not server formats or a guessed serial.
   EXPECT printer-device-id OF-TYPE text COUNT 1 WITH-VALUE "MFG:EPSON;MDL:LQ-1600KIII;CMD:ESCP24K,PRPXL24,BDC;CLS:PRINTER;"
-  EXPECT !pages-per-minute
+  EXPECT pages-per-minute OF-TYPE integer COUNT 1 WITH-VALUE 4
   EXPECT !pages-per-minute-color
   EXPECT media-default OF-TYPE keyword COUNT 1 WITH-VALUE iso_a4_210x297mm
 }
