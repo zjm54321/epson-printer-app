@@ -37,23 +37,23 @@ The runtime image is designed for isolated, least-privilege execution:
 ## Artifacts and Traceability
 
 Release builds publish three matching container images to the GitHub Container Registry (GHCR):
-- **Runtime**: `ghcr.io/zjm54321/epson-printer-app@sha256:1d6b04eacbf6d9cf8a940fdfc0f5de05907d2ab24a74a37c7f17db1477754230`
-- **Discovery**: `ghcr.io/zjm54321/epson-printer-discovery@sha256:ba6adad65f1f1576e28d2d0a622f2b85604dc5d032ead93d27c4bf70c2bf3abc`
-- **Source companion**: `ghcr.io/zjm54321/epson-printer-app-sources@sha256:973d7feb14637ee09229db64f241c5bd914437e087391b4f161587d82434c94e`
+- **Runtime**: `ghcr.io/zjm54321/epson-printer-app@sha256:55b986fb6a3c37efb82692d161098aeb7cf9fd0da197bb29df935b43f0e9db0b`
+- **Discovery**: `ghcr.io/zjm54321/epson-printer-discovery@sha256:f73cca094fe5622802f451e337196a5816131ed4881664224eef145222d0793c`
+- **Source companion**: `ghcr.io/zjm54321/epson-printer-app-sources@sha256:68100b3e03cd4aed2c5a2a014d61d6c9cec7149a2c2e987c7893c57322f180a6`
 
-Published from commit `dfffa343b79d8066c431759e8af3295b9df04882` via [CI run 38436891490](https://github.com/zjm54321/epson-printer-app/actions/runs/38436891490). Downstream deployments pin these exact immutable digests for the deployed milestone. The square compatible resolution mapping and friendly discovery name are changes in progress for the upcoming release, not yet built or published.
+Published from commit `66594761cd2ee46fa117530161fae3103b145ed5` via [CI run 38518321622](https://github.com/zjm54321/epson-printer-app/actions/runs/38518321622). Anonymous registry inspection verified all three image digests and configuration IDs match CI build records. These published artifacts incorporate the square compatible resolution mapping (`60x60`, `120x120`, `180x180`, `360x360`) and the persistent DNS-SD discovery name `Epson LQ-1600KIII`; downstream GitOps deployment and live client testing remain pending. The earlier `dfffa34` build is superseded as a historical milestone.
 
 The source companion contains corresponding source archives, build recipes, and package manifests. Keep the matching companion available alongside each runtime release to support applicable source-distribution obligations. See [THIRD_PARTY.md](THIRD_PARTY.md) for licenses and pinned source hashes; this packaging is not a legal-compliance certification.
 
 ## Continuous Integration Gates
 
-Build validation is tracked in [GitHub Actions](https://github.com/zjm54321/epson-printer-app/actions/workflows/image.yml). Every pull request and `main` push must pass:
+Build validation is tracked in [GitHub Actions](https://github.com/zjm54321/epson-printer-app/actions/workflows/image.yml). On push to `main` at commit `6659476`, CI run 38518321622 passed all gates:
 1. Static analysis (`scripts/check-static.py`).
 2. Exact runtime and discovery image tests (`scripts/verify-image.sh`):
    - Preflight: Ghostscript binary, device support, ELF contract, and private D-Bus/Avahi daemon readiness.
    - Profile verification: Exactly 2 offline PrintJobs and 1 controlled test-server restart (ephemeral file sinks only; no connection to physical hardware):
-     * **Case 1**: Fresh test queue setup and friendly discovery name persistence across a controlled test-server restart, after which the test script submits one PDF fixture job at normal 180×180 dpi with filter process exiting zero.
-     * **Case 2**: One `sgray_8` PWG raster fixture with `120x72dpi` input requested at `360x360dpi` (overriding `draft` quality preset) rendered by Ghostscript to `-r360x216` with original geometry and zero filter exit status.
+     * **Case 1**: Fresh test queue setup and friendly discovery name `Epson LQ-1600KIII` persistence across a controlled test-server restart, after which the test script submits one PDF fixture job at normal 180×180 dpi rendered to 7,156 ESC/P bytes with filter process exiting zero.
+     * **Case 2**: One `sgray_8` PWG raster fixture with `120x72dpi` input requested at `360x360dpi` (overriding `draft` quality preset) rendered by Ghostscript to `-r360x216` (44,189 ESC/P bytes) with full original 1020x792 / row 1020 bits 8 header geometry preserved and zero filter exit status.
 3. Source companion assembly and image publication matching verified build digests.
 
 ## Local Build and Verification
