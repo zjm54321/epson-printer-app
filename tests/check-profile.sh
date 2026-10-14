@@ -28,13 +28,14 @@ cleanup() {
 trap cleanup EXIT
 driver=generic--esc-p-dot-matrix-printer--epson-recommended-en
 queue=epson-lq1600kiii-epson
+public_slug=epson_lq-1600kiii
 dnssd_name='Epson LQ-1600KIII'
 device=offline:profile-test
 check=/usr/libexec/epson-printer-app/queue-check
-uri="ipp://127.0.0.1:8000/ipp/print/$queue"
+uri="ipp://127.0.0.1:8000/ipp/print/$public_slug"
 start() {
   /profile-tools/profile-server -o server-port=8000 -o listen-hostname=127.0.0.1 \
-    -o log-file=- -o log-level=debug server >> "$root/server.log" 2>&1 &
+    -o server-hostname=epson-printer -o log-file=- -o log-level=debug server >> "$root/server.log" 2>&1 &
   server=$!
   deadline=$(($(date +%s) + 30))
   while :; do
@@ -55,6 +56,18 @@ start() {
 }
 stop() {
   kill "$server"; wait "$server"; server=
+}
+snapshot_identity() {
+  if ! ipptool -T 10 -tv "$uri" /tests/printer-identity.test > "$root/identity.log" 2>&1; then
+    cat "$root/identity.log"
+    return 1
+  fi
+  cat "$root/identity.log"
+  awk '$1 == "printer-id" || $1 == "printer-uuid" { print $1, $4 }' \
+    "$root/identity.log" > "$root/identity-$1.values"
+  test "$(wc -l < "$root/identity-$1.values")" -eq 2
+  LC_ALL=C sort -o "$root/identity-$1.values" "$root/identity-$1.values"
+  /profile-tools/profile-raster web "/$public_slug/"
 }
 # Submit to the ephemeral file sink only, then wait for COMPLETED (not merely
 # accepted). Capture the actual foomatic/GS command and require ESC/P bytes.
@@ -99,17 +112,41 @@ start
 ghostscript-printer-app add -d "$queue" -m "$driver" -v "$device"
 ghostscript-printer-app default -d "$queue"
 # Keep quotes inside -o for PAPPL's cupsParseOptions, not only for the shell.
-ghostscript-printer-app modify -d "$queue" -o "printer-dns-sd-name=\"$dnssd_name\""
+ghostscript-printer-app modify -d "$queue" -o "printer-dns-sd-name=\"$dnssd_name\"" \
+  -o media=iso_a4_210x297mm -o media-source=auto
 # Includes four square standard/PWG compatibility resolutions, mono, normal/180 defaults,
 # absence of vendor Resolution, and the matching system-default printer ID.
 "$check" ready "$queue" "$driver" "$device" "$dnssd_name"
+snapshot_identity before
+gs -q -dBATCH -dNOPAUSE -sDEVICE=pdfwrite -sOutputFile="$root/fixture.pdf" /tests/fixture.ps
+submit pdf-normal application/pdf "$root/fixture.pdf" 180x180 none none
+# The per-job parser has already verified that all returned job IDs agree.
+pdf_job_id=$(awk '$1 == "job-id" && $2 == "(integer)" && $3 == "=" { print $4; exit }' "$root/ipp-job.log")
 stop
 test -s "$STATE_FILE"
 start
 # One controlled reload, with no default repair before querying/printing.
 "$check" ready "$queue" "$driver" "$device" "$dnssd_name"
-gs -q -dBATCH -dNOPAUSE -sDEVICE=pdfwrite -sOutputFile="$root/fixture.pdf" /tests/fixture.ps
-submit pdf-normal application/pdf "$root/fixture.pdf" 180x180 none none
+snapshot_identity after
+diff -u "$root/identity-before.values" "$root/identity-after.values"
+# The same completed PDF job must remain in history after loading the state.
+cat > "$root/history.test" <<'TEST'
+{
+  NAME "Completed PDF job survives restart"
+  OPERATION Get-Job-Attributes
+  GROUP operation-attributes-tag
+  ATTR charset attributes-charset utf-8
+  ATTR language attributes-natural-language en
+  ATTR uri printer-uri $uri
+  ATTR integer job-id $saved_job_id
+  ATTR keyword requested-attributes job-id,job-name,job-state
+  STATUS successful-ok
+  EXPECT job-id OF-TYPE integer COUNT 1 WITH-VALUE $saved_job_id
+  EXPECT job-name OF-TYPE name COUNT 1 WITH-VALUE pdf-normal
+  EXPECT job-state OF-TYPE enum COUNT 1 WITH-VALUE 9
+}
+TEST
+ipptool -T 10 -tv -d "saved_job_id=$pdf_job_id" "$uri" "$root/history.test"
 
 printf '%s\n' 'Core test 2/2: sgray_8 PWG 120x72 input, logical 360dpi overrides draft; physical ESC/P 360x216'
 /profile-tools/profile-raster gray "$root/gray.pwg"

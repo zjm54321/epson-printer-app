@@ -1,0 +1,33 @@
+# Read-only assertions within core test 1, before and after its single restart.
+{
+  NAME "Canonical resource and truthful printer identity"
+  OPERATION Get-Printer-Attributes
+  GROUP operation-attributes-tag
+  ATTR charset attributes-charset utf-8
+  ATTR language attributes-natural-language en
+  ATTR uri printer-uri $uri
+  ATTR keyword requested-attributes printer-id,printer-uuid,printer-name,printer-dns-sd-name,printer-uri-supported,printer-more-info,printer-make-and-model,printer-device-id,pages-per-minute,pages-per-minute-color,media-default
+  STATUS successful-ok
+  EXPECT printer-id OF-TYPE integer COUNT 1
+  EXPECT printer-uuid OF-TYPE uri COUNT 1
+  EXPECT printer-name OF-TYPE name COUNT 1 WITH-VALUE epson-lq1600kiii-epson
+  EXPECT printer-dns-sd-name OF-TYPE name COUNT 1 WITH-VALUE "Epson LQ-1600KIII"
+  EXPECT printer-uri-supported OF-TYPE uri WITH-ALL-VALUES "/^ipps?:[/][/][^/]+/ipp/print/epson_lq-1600kiii$$/"
+  EXPECT printer-more-info OF-TYPE uri COUNT 1 WITH-VALUE "/^https?:[/][/][^/]+/epson_lq-1600kiii/$$/"
+  EXPECT printer-make-and-model OF-TYPE text COUNT 1 WITH-VALUE "Epson LQ-1600KIII"
+  # Exact fallback: no invented serial, command language or mechanical feature.
+  EXPECT printer-device-id OF-TYPE text COUNT 1 WITH-VALUE "MFG:EPSON;MDL:LQ-1600KIII;"
+  EXPECT !pages-per-minute
+  EXPECT !pages-per-minute-color
+  EXPECT media-default OF-TYPE keyword COUNT 1 WITH-VALUE iso_a4_210x297mm
+}
+{
+  NAME "Old named IPP resource is not an alias"
+  OPERATION Get-Printer-Attributes
+  RESOURCE /ipp/print/epson-lq1600kiii-epson
+  GROUP operation-attributes-tag
+  ATTR charset attributes-charset utf-8
+  ATTR language attributes-natural-language en
+  ATTR uri printer-uri ipp://127.0.0.1:8000/ipp/print/epson-lq1600kiii-epson
+  STATUS client-error-not-found
+}

@@ -1,0 +1,91 @@
+--- a/pappl/printer.c
++++ b/pappl/printer.c
+@@ -257,7 +257,9 @@
+   {
+     // Make sure printer names that start with a digit have a resource path
+     // containing an underscore...
+-    if (isdigit(*printer_name & 255))
++    if (!strcmp(printer_name, "epson-lq1600kiii-epson"))
++      papplCopyString(resource, "/ipp/print/epson_lq-1600kiii", sizeof(resource));
++    else if (isdigit(*printer_name & 255))
+       snprintf(resource, sizeof(resource), "/ipp/print/_%s", printer_name);
+     else
+       snprintf(resource, sizeof(resource), "/ipp/print/%s", printer_name);
+@@ -290,6 +292,14 @@
+   {
+     int		n;		// Current instance number
+     char	temp[1024];	// Temporary resource path
++
++    // This public resource must never silently become an _2 alias.
++    if (!strcmp(resource, "/ipp/print/epson_lq-1600kiii"))
++    {
++      papplLog(system, PAPPL_LOGLEVEL_ERROR, "Canonical Epson resource conflicts with an existing printer.");
++      errno = EEXIST;
++      return (NULL);
++    }
+ 
+     if (!strcmp(printer_name, printer->name))
+     {
+@@ -341,6 +351,13 @@
+ #endif // _WIN32
+ 
+   // Initialize printer structure and attributes...
++  // Supply only known model identity, never a bridge fallback serial or CMD.
++  // Keep any genuine device ID and the internal queue name/UUID inputs intact.
++  if ((!device_id || !*device_id) &&
++      !strcmp(printer_name, "epson-lq1600kiii-epson") &&
++      !strcmp(driver_name, "generic--esc-p-dot-matrix-printer--epson-recommended-en"))
++    device_id = "MFG:EPSON;MDL:LQ-1600KIII;";
++
+   pthread_rwlock_init(&printer->rwlock, NULL);
+ 
+   printer->system             = system;
+--- a/pappl/mainloop-support.c
++++ b/pappl/mainloop-support.c
+@@ -393,7 +393,9 @@
+ 	*resptr;			// Pointer into resource path
+ 
+ 
+-  snprintf(resource, rsize, "/ipp/print/%s", printer_name);
++  snprintf(resource, rsize, "/ipp/print/%s",
++           !strcmp(printer_name, "epson-lq1600kiii-epson") ?
++           "epson_lq-1600kiii" : printer_name);
+   for (resptr = resource + 11; *resptr; resptr ++)
+   {
+     if ((*resptr & 255) <= ' ' || strchr("\177/\\\'\"?#", *resptr))
+--- a/pappl/printer-driver.c
++++ b/pappl/printer-driver.c
+@@ -184,6 +184,12 @@
+   // Copy driver data to printer
+   memcpy(&printer->driver_data, data, sizeof(printer->driver_data));
+   printer->num_ready = data->num_source;
++
++  // The generic driver is still used; only this queue has a known model.
++  if (!strcmp(printer->name, "epson-lq1600kiii-epson") &&
++      !strcmp(printer->driver_name, "generic--esc-p-dot-matrix-printer--epson-recommended-en"))
++    papplCopyString(printer->driver_data.make_and_model, "Epson LQ-1600KIII",
++                    sizeof(printer->driver_data.make_and_model));
+ 
+   // Create printer (capability) attributes based on driver data...
+   ippDelete(printer->driver_attrs);
+@@ -912,10 +918,16 @@
+ 
+ 
+   // pages-per-minute
+-  if (data->ppm > 0)
+-    ippAddInteger(attrs, IPP_TAG_PRINTER, IPP_TAG_INTEGER, "pages-per-minute", data->ppm);
+-  else
+-    ippAddInteger(attrs, IPP_TAG_PRINTER, IPP_TAG_INTEGER, "pages-per-minute", 1);
++  // Internal ppm stays positive for driver validation; physical speed for
++  // this printer is unmeasured, so do not advertise the generic 1 ppm guess.
++  if (strcmp(printer->name, "epson-lq1600kiii-epson") ||
++      strcmp(printer->driver_name, "generic--esc-p-dot-matrix-printer--epson-recommended-en"))
++  {
++    if (data->ppm > 0)
++      ippAddInteger(attrs, IPP_TAG_PRINTER, IPP_TAG_INTEGER, "pages-per-minute", data->ppm);
++    else
++      ippAddInteger(attrs, IPP_TAG_PRINTER, IPP_TAG_INTEGER, "pages-per-minute", 1);
++  }
+ 
+ 
+   // pages-per-minute-color

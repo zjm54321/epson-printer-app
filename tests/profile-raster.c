@@ -7,10 +7,26 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 int main(int argc, char **argv) {
   assert(argc == 3);
+  if (!strcmp(argv[1], "web")) {
+    // Read-only loopback HTTP check inside the isolated test network.
+    http_t *http = httpConnect2("127.0.0.1", 8000, NULL, AF_UNSPEC,
+                               HTTP_ENCRYPTION_IF_REQUESTED, 1, 3000, NULL);
+    assert(http && argv[2][0] == '/');
+    httpSetTimeout(http, 5.0, NULL, NULL);
+    assert(httpGet(http, argv[2]) == 0);
+    http_status_t status;
+    do { status = httpUpdate(http); } while (status == HTTP_STATUS_CONTINUE);
+    assert(status == HTTP_STATUS_OK);
+    httpFlush(http);
+    httpClose(http);
+    puts("PASS canonical web resource returns HTTP 200");
+    return 0;
+  }
   if (!strcmp(argv[1], "output")) {
     FILE *f = fopen(argv[2], "rb");
     unsigned char data[4096];
@@ -35,7 +51,7 @@ int main(int argc, char **argv) {
   assert(fd >= 0);
   cups_raster_t *raster = cupsRasterOpen(fd, CUPS_RASTER_WRITE_PWG);
   cups_page_header2_t header;
-  pwg_media_t *media = pwgMediaForPWG("na_letter_8.5x11in");
+  pwg_media_t *media = pwgMediaForPWG("iso_a4_210x297mm");
   assert(raster && media);
   assert(cupsRasterInitPWGHeader(&header, media, "sgray_8",
                                  120, 72, "one-sided", "normal"));

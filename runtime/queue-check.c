@@ -168,7 +168,9 @@ int main(int argc, char **argv) {
     return 1;
   }
   httpSetTimeout(http, 5.0, NULL, NULL);
-  snprintf(resource, sizeof(resource), "/ipp/print/%s", argv[2]);
+  // Public resource mapping only; identity below still checks the internal name.
+  snprintf(resource, sizeof(resource), "/ipp/print/%s",
+           !strcmp(argv[2], "epson-lq1600kiii-epson") ? "epson_lq-1600kiii" : argv[2]);
   ipp_t *response = query(http, IPP_OP_GET_PRINTER_ATTRIBUTES, resource);
   if (response && ippGetStatusCode(response) == IPP_STATUS_ERROR_NOT_FOUND) {
     result = ready ? 1 : 4;
