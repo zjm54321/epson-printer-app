@@ -1,0 +1,30 @@
+--- a/pappl/system-private.h
++++ b/pappl/system-private.h
+@@ -69,6 +69,7 @@
+   char			*hostname;		// Published hostname
+   int			port;			// Port number, if any
+   bool			is_listenhost;		// Hostname is listen host
++  bool                  has_explicit_hostname;  // Public setter supplied a hostname
+   char			*domain_path;		// Domain socket path, if any
+   cups_len_t		num_versions;		// Number of "xxx-firmware-yyy" values
+   pappl_version_t	versions[10];		// "xxx-firmware-yyy" values
+--- a/pappl/system-accessors.c
++++ b/pappl/system-accessors.c
+@@ -1843,7 +1843,8 @@
+ 	*ptr;				// Pointer in temporary hostname
+ 
+ 
+-  if (system->is_listenhost)
++  // Discovery refreshes must not replace an explicitly configured hostname.
++  if (system->is_listenhost || (!value && system->has_explicit_hostname))
+     return;
+ 
+   if (value)
+@@ -1919,6 +1920,7 @@
+   if (system)
+   {
+     _papplRWLockWrite(system);
++    system->has_explicit_hostname = (value != NULL);
+     _papplSystemSetHostNameNoLock(system, value);
+     _papplRWUnlock(system);
+   }
