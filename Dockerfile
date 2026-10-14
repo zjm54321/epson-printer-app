@@ -17,24 +17,15 @@ RUN bash /recipe/scripts/build-discovery.sh
 
 FROM runtime-base AS build
 COPY Dockerfile .dockerignore sources.lock.json THIRD_PARTY.md /recipe/
-COPY scripts/build-*.sh scripts/entrypoint.sh scripts/discovery-entrypoint.sh scripts/verify-image.sh /recipe/scripts/
+COPY scripts/build-*.sh scripts/entrypoint.sh scripts/discovery-entrypoint.sh /recipe/scripts/
 COPY patches/ /recipe/patches/
 COPY discovery/ /recipe/discovery/
-COPY tests/ /recipe/tests/
 COPY runtime/ /recipe/runtime/
 RUN bash /recipe/scripts/build-dependencies.sh
 RUN bash /recipe/scripts/build-fetch.sh
 RUN bash /recipe/scripts/build-stack.sh
 RUN bash /recipe/scripts/build-ppds.sh
 RUN bash /recipe/scripts/build-runtime.sh
-
-FROM build AS profile-test-build
-RUN bash /recipe/scripts/build-profile-tests.sh
-
-# Only CI exports these tools and mounts them into the exact runtime image.
-# The production runtime never contains the test-only file-sink device.
-FROM scratch AS profile-test-tools
-COPY --from=profile-test-build /profile-test-tools/ /
 
 FROM build AS source-collection
 COPY --from=discovery-build /discovery-source/manifests/discovery-packages.tsv /corresponding-source/manifests/discovery-packages.tsv

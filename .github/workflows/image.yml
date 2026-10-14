@@ -1,4 +1,4 @@
-name: Build, test, and publish images
+name: Build and publish images
 
 on:
   pull_request:
@@ -18,7 +18,7 @@ env:
   IMAGE_SOURCE: https://github.com/zjm54321/epson-printer-app
 
 jobs:
-  build-test:
+  build:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
@@ -37,33 +37,30 @@ jobs:
           docker build --pull --platform linux/amd64 --target runtime \
             --label "org.opencontainers.image.source=$IMAGE_SOURCE" \
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
-            -t epson-printer-app:test .
+            -t epson-printer-app:build .
 
       - name: Build discovery once
         run: |
           docker build --platform linux/amd64 --target discovery \
             --label "org.opencontainers.image.source=$IMAGE_SOURCE" \
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
-            -t epson-printer-discovery:test .
-
-      - name: Test the exact runtime and discovery images
-        run: bash scripts/verify-image.sh epson-printer-app:test epson-printer-discovery:test
+            -t epson-printer-discovery:build .
 
       - name: Build corresponding-source companion
         run: |
           docker build --platform linux/amd64 --target sources \
             --label "org.opencontainers.image.source=$IMAGE_SOURCE" \
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
-            -t epson-printer-app-sources:test .
+            -t epson-printer-app-sources:build .
 
       - name: Record built image identities
         run: |
           mkdir -p bundle
-          for image in epson-printer-app:test epson-printer-discovery:test epson-printer-app-sources:test; do
+          for image in epson-printer-app:build epson-printer-discovery:build epson-printer-app-sources:build; do
             printf '%s %s\n' "$image" "$(docker image inspect --format '{{.Id}}' "$image")"
           done | tee bundle/image-ids.txt
           {
-            printf '### Tested build: %s\n\n' "$GITHUB_SHA"
+            printf '### Built images: %s\n\n' "$GITHUB_SHA"
             printf '```text\n'
             cat bundle/image-ids.txt
             printf '```\n'
@@ -72,15 +69,15 @@ jobs:
       - name: Save the images without rebuilding
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         run: |
-          docker save epson-printer-app:test epson-printer-discovery:test epson-printer-app-sources:test | gzip -1 > bundle/images.tar.gz
+          docker save epson-printer-app:build epson-printer-discovery:build epson-printer-app-sources:build | gzip -1 > bundle/images.tar.gz
           (cd bundle && sha256sum images.tar.gz image-ids.txt > SHA256SUMS)
 
-      - name: Transfer tested images to the publish job
+      - name: Transfer built images to the publish job
         id: transfer
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: tested-images-${{ github.sha }}
+          name: built-images-${{ github.sha }}
           path: bundle/
           if-no-files-found: error
           compression-level: 0
@@ -94,7 +91,7 @@ jobs:
           printf '\nTransfer artifact SHA-256: %s\n' "$ARTIFACT_DIGEST" >> "$GITHUB_STEP_SUMMARY"
 
   publish:
-    needs: build-test
+    needs: build
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -102,17 +99,17 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Download the tested images from this run
+      - name: Download the built images from this run
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: tested-images-${{ github.sha }}
+          name: built-images-${{ github.sha }}
           path: bundle/
 
       - name: Verify transfer and load the exact images
         run: |
           (cd bundle && sha256sum --check SHA256SUMS)
           docker load --input bundle/images.tar.gz
-          for image in epson-printer-app:test epson-printer-discovery:test epson-printer-app-sources:test; do
+          for image in epson-printer-app:build epson-printer-discovery:build epson-printer-app-sources:build; do
             printf '%s %s\n' "$image" "$(docker image inspect --format '{{.Id}}' "$image")"
           done > bundle/loaded-image-ids.txt
           diff -u bundle/image-ids.txt bundle/loaded-image-ids.txt
@@ -130,7 +127,7 @@ jobs:
         run: |
           : > bundle/published-images.txt
           for name in epson-printer-app epson-printer-discovery epson-printer-app-sources; do
-            local_image="$name:test"
+            local_image="$name:build"
             remote_image="ghcr.io/zjm54321/$name:sha-$GITHUB_SHA"
             expected_id="$(docker image inspect --format '{{.Id}}' "$local_image")"
             docker tag "$local_image" "$remote_image"

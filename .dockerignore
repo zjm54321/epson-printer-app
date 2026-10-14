@@ -7,9 +7,6 @@
 !scripts/build-*.sh
 !scripts/entrypoint.sh
 !scripts/discovery-entrypoint.sh
-!scripts/verify-image.sh
-!tests/
-!tests/**
 !runtime/
 !runtime/**
 !patches/

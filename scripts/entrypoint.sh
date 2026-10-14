@@ -3,10 +3,10 @@ set -eu
 case "${1:-help}" in
   help|--help|-h)
     printf '%s\n' \
-      'Epson ESC/P diagnostic image; default operation does not start a server.' \
+      'Epson ESC/P printer application; default operation does not start a server.' \
       'inspect: Ghostscript version and installed PPD names only.' \
       'server [-o listen-hostname=127.0.0.1]: explicit printer-app startup on port 8000.' \
-      'Use fresh /state for inert tests: restored state may resume historical jobs.' \
+      'Restored /state may resume historical jobs; use the intended persistent state.' \
       'No automatic D-Bus, Avahi, queue creation, discovery command or test page.'
     ;;
   inspect)

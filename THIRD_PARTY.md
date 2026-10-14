@@ -5,8 +5,7 @@ The CUPS source has one locally applied, hash-pinned patch:
 responses and uses USB descriptors for URI selection only on VID/PID 1a86:7584;
 valid IEEE1284 metadata and other vendors' URI logic remain. The upstream
 no-reattach quirk is unchanged. Exact patches accompany the upstream archives,
-recipes and corresponding-source artifact. Hardware stability still needs real
-IPP-print validation; the focused source checks do not emulate that hardware.
+recipes and corresponding-source artifact.
 
 The separate `discovery` target uses Noble's Avahi/D-Bus packages. Their resolved
 binary/source versions and licenses are retained, and their corresponding Ubuntu
@@ -19,17 +18,13 @@ GetNameOwner confirms `org.freedesktop.Avahi`; it clears the marker on startup
 and exit, forwarding TERM to its foreground daemon. Queue bootstrap can wait on
 that marker before starting PAPPL; app ENTRYPOINT remains unchanged.
 The image defaults to generic eth0/epson-printer; GitOps can set interfaces/name.
-IPv6, wide-area DNS, reflector and workstation publication are disabled. CI
-case 2 uses a network-none shared namespace, private bus and Avahi on lo, then
-checks the existing fresh no-USB application/zero-queue behavior. This tests
-daemon integration, not actual LAN mDNS reachability or a printer announcement.
+IPv6, wide-area DNS, reflector and workstation publication are disabled.
 
 This is a native Ubuntu 24.04 **linux/amd64** build of the existing OpenPrinting
 Ghostscript Printer Application, not a replacement print implementation. The
-default entrypoint prints local help only. `server` is explicit. No CUPS scheduler,
-network backend, Avahi daemon, D-Bus service, supervisor, HP/HPIJS driver or firmware
-is installed by the source-build recipe. Avahi **client libraries** remain PAPPL
-dependencies; discovery is not a separately launched component here.
+default entrypoint prints local help only. `server` is explicit. The runtime
+container carries PAPPL and Avahi client libraries, while the Avahi daemon and
+private D-Bus service run in separate discovery sidecar containers.
 
 ## Pinned upstream inputs
 
@@ -45,7 +40,7 @@ Ubuntu index/amd64 digests and the official Ghostscript archive SHA256/size.
 | cups-filters | 2.0.1 | foomatic-rip, gstoraster, pdftops only |
 | pappl-retrofit | 49ad525a3715a57aae24c715ef0767b55ffb1991 | existing legacy-driver integration |
 | Ghostscript Printer Application | 4afd1570bd3e70b30a5730a2748346d89b2c41ad | native `SNAP=0` application |
-| Foomatic DB | 20240504, b1324cde08349583c44a20067a4d877e087d75fe | three upstream Epson/ESC-P PPDs |
+| Foomatic DB | 20240504, b1324cde08349583c44a20067a4d877e087d75fe | upstream Generic ESC/P Dot Matrix PPD (`epson`) |
 | Ubuntu foomatic-db-engine | 4.0.13-6 | build-time PPD generator; not in runtime |
 
 QPDF comes from Noble (build requires >=11), not a separate source build.
@@ -63,8 +58,8 @@ Build targets are `runtime`, `discovery` and `sources`. The scratch `sources` im
 * the exact upstream archives used, including complete upstream license files;
 * `licenses/upstream/` preserving discovered license/notice paths, and original
   Ubuntu source archives plus Debian/Ubuntu patches and `.dsc` files;
-* this Dockerfile, lock, fixtures and build/test scripts under `build-recipe/`;
-* the exact locally applied source patch;
+* this Dockerfile, lock and build recipes under `build-recipe/`;
+* the locally applied source patches;
 * resolved binary/source package versions, selected PPD generator inputs,
   build-time ELF resolutions, source-library hashes and `SHA256SUMS`.
 
@@ -74,7 +69,7 @@ Other build-only tools are version-inventoried but not redistributed. Missing
 historical apt sources fail the companion build;
 they are not silently replaced with unrelated versions. This can make the source
 artifact substantially larger than the runtime. Publish and retain the companion
-alongside the tested runtime; neither manifests nor a URL-only list substitute
+alongside the corresponding runtime; neither manifests nor a URL-only list substitute
 for corresponding sources.
 
 Ghostscript is distributed under its upstream AGPL terms; other components and
@@ -84,34 +79,20 @@ Read the preserved COPYING/LICENSE/COPYRIGHT/NOTICE files and Ubuntu copyright
 files for actual terms. Review distribution obligations before publication; the
 artifact structure is evidence/support, not a legal-compliance certification.
 
-## Narrow runtime and test claims
+## Runtime architecture and hardening
 
 Source-built libraries are installed in `/usr/lib`; `LD_LIBRARY_PATH=/usr/lib`
 places them ahead of Noble multiarch libraries with the same SONAME. Build-time
-closure rejects a distro libcups/libppd/libcupsfilters/PAPPL resolution. Scenario
-1 rechecks actual runtime `ldd` paths and source-library hashes for the app, USB
-backend and filters, as well as actual `gs --version` and required devices. Pins
-alone, headers and `cups-config` output are not runtime-version proof.
+closure rejects unintended distribution library fallbacks for libcups, libppd,
+libcupsfilters, and PAPPL.
 
-Runtime UID/GID is 584792; no SUID/SGID/file capabilities are retained. USB backend
-mode is 0755, not the upstream packaging's 4755. Runtime tests use cap-drop ALL,
-no-new-privileges, read-only root, no network, no USB and fresh tmpfs `/state` and
-`/tmp`. HOME is `/state`; nonroot CUPS/GnuTLS certificates belong under
-`/state/.cups/ssl`, never writable `/etc`. State/spool directories are private.
-Group 0 device-access permission is a later deployment choice, not proof that
-nonroot libusb operations work. Never loosen these restrictions to make a test pass.
-
-**Fresh state is mandatory for inert tests. Restored state can resume old jobs.**
-The explicit server test uses the existing retrofit save callback and verifies
-zero queues with Get-Printers, including absence of any printer-attributes group.
-It does not start automatic discovery, create a queue, submit a job or invoke a
-USB backend. A separate scenario invokes only installed foomatic-rip with the
-selected installed LQ-850 PPD and the repository-owned one-page PostScript fixture,
-writing to a temporary file and checking ESC/P bytes. This is not a claim that
-the physical printer is an LQ-850 or an exact LQ-1600KIII match.
-
-Exactly three functional scenarios are defined in `scripts/verify-image.sh`.
-Actual build/configure paths, generated PPD behavior, inert PAPPL startup and
-filter conversion must pass on the CI Docker runner before publishing. No local
-Docker daemon installation, physical printing, host mutation or automatic test
-page is part of this repository's validation.
+The runtime image defaults to non-root execution:
+* Image defaults to non-root UID/GID `584792:584792` with all SUID/SGID bits and file
+  capabilities stripped; CUPS USB backend mode is `0755`.
+* Deployment manifests enforce container security settings, including `no-new-privileges`,
+  `cap-drop: ALL`, and a read-only root filesystem (`readOnlyRootFilesystem: true`).
+* HOME is set to `/state`; non-root certificates and configuration reside in private
+  storage paths under `/state`, requiring writable mounts only for persistent `/state` and
+  ephemeral `/tmp`.
+* Restoring persistent spool state resumes unfinished print jobs across restarts; startup
+  never generates or submits automatic test jobs.

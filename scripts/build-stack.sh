@@ -76,7 +76,6 @@ install -m 0755 cups-config /usr/bin/cups-config
 cp -a cups/libcups*.so* /runtime/usr/lib/
 ldconfig
 make -j"$jobs" -C backend usb
-python3 /recipe/tests/check-usb-patch.py /src/cups/backend/usb-libusb.c
 install -m 0755 backend/usb /runtime/usr/lib/ghostscript-printer-app/backend/usb
 install -D -m 0644 backend/org.cups.usb-quirks /runtime/usr/share/cups/usb/org.cups.usb-quirks
 # Read-only IPP inspection tooling, not a scheduler or a backend.

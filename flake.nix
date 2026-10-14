@@ -13,7 +13,7 @@
         packages = with pkgs; [ python3 git curl gh shellcheck actionlint ];
         shellHook = ''
           echo "Static checks: python3 scripts/check-static.py"
-          echo "Image builds and runtime tests run on GitHub's ubuntu-24.04 runner."
+          echo "Image builds and publication run on GitHub's ubuntu-24.04 runner."
         '';
       };
     };

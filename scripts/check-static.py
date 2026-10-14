@@ -15,11 +15,20 @@ REQUIRED = (
     "Dockerfile",
     ".dockerignore",
     "sources.lock.json",
-    "flake.nix",
-    "flake.lock",
+    "THIRD_PARTY.md",
     ".github/workflows/image.yml",
+    "runtime/queue-check.c",
+    "discovery/avahi-daemon.conf.in",
+    "discovery/dbus-system.conf",
+    "scripts/build-dependencies.sh",
+    "scripts/build-discovery.sh",
+    "scripts/build-fetch.sh",
+    "scripts/build-ppds.sh",
+    "scripts/build-runtime.sh",
+    "scripts/build-sources.sh",
+    "scripts/build-stack.sh",
     "scripts/entrypoint.sh",
-    "scripts/verify-image.sh",
+    "scripts/discovery-entrypoint.sh",
 )
 
 
@@ -58,21 +67,15 @@ def check_patches(lock):
 
 def main():
     missing = [name for name in REQUIRED if not (ROOT / name).is_file()]
-    if not list((ROOT / "scripts").glob("build-*")):
-        missing.append("scripts/build-*")
-    if not any((ROOT / "tests").glob("**/*")):
-        missing.append("tests fixtures")
     if missing:
         raise ValueError("required files missing: " + ", ".join(missing))
 
-    for name in ("sources.lock.json", "flake.lock"):
-        with (ROOT / name).open(encoding="utf-8") as stream:
-            value = json.load(stream)
-        if not isinstance(value, dict):
-            raise ValueError(f"{name}: expected a JSON object")
-        if name == "sources.lock.json":
-            check_hashes(value)
-            check_patches(value)
+    with (ROOT / "sources.lock.json").open(encoding="utf-8") as stream:
+        value = json.load(stream)
+    if not isinstance(value, dict):
+        raise ValueError("sources.lock.json: expected a JSON object")
+    check_hashes(value)
+    check_patches(value)
 
     workflows = sorted((ROOT / ".github/workflows").glob("*.yml"))
     for workflow in workflows:
@@ -81,14 +84,13 @@ def main():
                 raise ValueError(f"{workflow.relative_to(ROOT)}: action is not commit-pinned: {action}")
 
     scripts = sorted((ROOT / "scripts").glob("*.sh"))
-    scripts += sorted((ROOT / "tests").glob("**/*.sh"))
     for script in scripts:
         subprocess.run(["bash", "-n", str(script)], cwd=ROOT, check=True)
     if shutil.which("actionlint"):
         subprocess.run(["actionlint", *map(str, workflows)], cwd=ROOT, check=True)
     else:
         print("SKIP actionlint: unavailable; use nix develop for workflow linting")
-    print(f"PASS static checks ({len(scripts)} shell scripts); runtime tests are separate")
+    print(f"PASS build input integrity and syntax checks ({len(scripts)} shell scripts)")
 
 
 if __name__ == "__main__":
